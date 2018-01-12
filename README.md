@@ -1,4 +1,4 @@
-plat -- Chip16 platform game engine
+# plat -- Chip16 platform game engine
 
 Experiments in writing platform game code for Chip16.
 
