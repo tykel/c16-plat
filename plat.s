@@ -10,11 +10,11 @@ importbin gfx/c2b.bin 0 256 data.gfx_c2b
 ; Main program
 ;------------------------------------------------------------------------------
 start:         call sub_ldlvl
-               bgc 0
                ldi ra, 280
                ldi rb, 33
                spr 0x1008
 loop:          cls
+               bgc 11
                ldi r1, TILES_LASTY
 .loop_y:       ldi r0, TILES_LASTX
 .loop_x:       mov r2, r1
@@ -86,6 +86,9 @@ sub_mvplyr:    mov r0, ra
 .sub_mvplyr_b: add rb, rc
 .sub_mvplyr_Z: ret 
 
+;------------------------------------------------------------------------------
+; Move player left accounting for collisions
+;------------------------------------------------------------------------------
 sub_mvleft:    mov r0, ra
                subi r0, 2
                mov r1, rb
@@ -99,6 +102,9 @@ sub_mvleft:    mov r0, ra
                stm r0, data.v_hmov
 .sub_mvleft_Z: ret
 
+;------------------------------------------------------------------------------
+; Move player right accounting for collisions
+;------------------------------------------------------------------------------
 sub_mvright:   mov r0, ra
                addi r0, 10
                mov r1, rb
@@ -116,6 +122,9 @@ sub_mvright:   mov r0, ra
                stm r0, data.v_hmov
 .sub_mvright_Z: ret
 
+;------------------------------------------------------------------------------
+; Draw player accounting for direction, movement and animation counter
+;------------------------------------------------------------------------------
 sub_drwplyr:   ;spr 0x0804
                mov r0, ra
                subi r0, 4
@@ -151,12 +160,18 @@ sub_dy2blk:    mov r1, rb
                sub r1, rb, r0
 .sub_dy2blk_Z: ret
 
+;------------------------------------------------------------------------------
+; Return remaining pixels to previous 8-aligned x-coordinate
+;------------------------------------------------------------------------------
 sub_dx2lblk:   mov r1, ra
                shr r1, 3
                shl r1, 3
                sub r1, ra, r0
                ret
 
+;------------------------------------------------------------------------------
+; Return remaining pixels to next 8-aligned x-coordinate
+;------------------------------------------------------------------------------
 sub_dx2rblk:   mov r1, ra
                addi r1, 7
                shr r1, 3
@@ -210,16 +225,25 @@ sub_btn_a:     ldm r0, 0xfff0
                shr r0, 6
                ret
 
+;------------------------------------------------------------------------------
+; Return whether button Left is pressed
+;------------------------------------------------------------------------------
 sub_btn_left:  ldm r0, 0xfff0
                andi r0, 0x04
                shr r0, 2
                ret
 
+;------------------------------------------------------------------------------
+; Return whether button Right is pressed
+;------------------------------------------------------------------------------
 sub_btn_right: ldm r0, 0xfff0
                andi r0, 0x08
                shr r0, 3
                ret
 
+;------------------------------------------------------------------------------
+; DATA 
+;------------------------------------------------------------------------------
 data.level:    db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
                db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
                db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
