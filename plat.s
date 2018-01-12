@@ -38,13 +38,13 @@ loop:          ldi r1, TILES_LASTY
 
                spr 0x0804
                drw ra, rb, data.plyr
-               mov r0, rb
-               addi r0, 8
-               drw ra, r0, data.highl 
+               ;mov r0, rb
+               ;addi r0, 8
+               ;drw ra, r0, data.highl 
                spr 0x1008
 
 draw_end:      vblnk
-.break:        cls
+               cls
                jmp loop
 
 spin:          vblnk
@@ -83,6 +83,29 @@ sub_mvplyr:    mov r0, ra
 .sub_mvplyr_b: add rb, rc
 .sub_mvplyr_Z: ret 
 
+sub_mvleft:    mov r0, ra
+               subi r0, 2
+               mov r1, rb
+               addi r1, 4
+               call sub_getblk
+               tsti r0, 1
+               jnz .sub_mvleft_Z
+.break:        subi ra, 2
+.sub_mvleft_Z: ret
+
+sub_mvright:   mov r0, ra
+               addi r0, 10
+               mov r1, rb
+               addi r1, 4
+               call sub_getblk
+               tsti r0, 1
+               jz .sub_mvright_A
+               call sub_dx2rblk
+               add ra, r0
+               jmp .sub_mvright_Z
+.sub_mvright_A: addi ra, 2
+.sub_mvright_Z: ret
+
 ;------------------------------------------------------------------------------
 ; Return remaining pixels to next 8-aligned y-coordinate
 ;------------------------------------------------------------------------------
@@ -92,6 +115,19 @@ sub_dy2blk:    mov r1, rb
                shl r1, 3
                sub r1, rb, r0
 .sub_dy2blk_Z: ret
+
+sub_dx2lblk:   mov r1, ra
+               shr r1, 3
+               shl r1, 3
+               sub r1, ra, r0
+               ret
+
+sub_dx2rblk:   mov r1, ra
+               addi r1, 7
+               shr r1, 3
+               shl r1, 3
+               sub r1, ra, r0
+               ret
 
 ;------------------------------------------------------------------------------
 ; Return contents of block in level map
@@ -120,7 +156,16 @@ sub_input:     call sub_btn_a
                jmp .sub_input_B
 .sub_input_A:  ldi r0, 0
                stm r0, data.v_jump
-.sub_input_B:  ret
+.sub_input_B:  call sub_btn_left
+               cmpi r0, 1
+               jnz .sub_input_C
+               call sub_mvleft
+               jmp .sub_input_Z
+.sub_input_C:  call sub_btn_right
+               cmpi r0, 1
+               jnz .sub_input_Z
+               call sub_mvright
+.sub_input_Z:  ret
 
 ;------------------------------------------------------------------------------
 ; Return whether button A is pressed
@@ -128,6 +173,16 @@ sub_input:     call sub_btn_a
 sub_btn_a:     ldm r0, 0xfff0
                andi r0, 0x40
                shr r0, 6
+               ret
+
+sub_btn_left:  ldm r0, 0xfff0
+               andi r0, 0x04
+               shr r0, 2
+               ret
+
+sub_btn_right: ldm r0, 0xfff0
+               andi r0, 0x08
+               shr r0, 3
                ret
 
 data.level:    db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
