@@ -9,14 +9,14 @@ importbin gfx/c2b.bin 0 256 data.gfx_c2b
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-start:         call sub_ldlvl
-               ldi ra, 280
+start:         call sub_ldlvl             ; Decompress level into tilemap memory
+               ldi ra, 280                ; Initial player position
                ldi rb, 33
-               spr 0x1008
-loop:          cls
-               bgc 11
+               spr 0x1008                 ; Default sprite size 16x16
+loop:          cls                        ; Clear screen
+               bgc 11                     ; Dark background
                ldi r1, TILES_LASTY
-.loop_y:       ldi r0, TILES_LASTX
+.loop_y:       ldi r0, TILES_LASTX        ; Draw level tile sprites
 .loop_x:       mov r2, r1
                muli r2, TILES_X
                add r2, r0
@@ -36,17 +36,17 @@ loop:          cls
                jnn .loop_y
 .loop_end:     nop
                
-               call sub_input
-               call sub_mvplyr
+               call sub_input             ; Handle input; maybe move L/R or jump
+               call sub_mvplyr            ; Move U/D
 
-               call sub_drwplyr
+               call sub_drwplyr           ; Draw player sprite
 
-draw_end:      vblnk
-               flip 0,0
-               ldm r0, data.v_anim_c
+draw_end:      vblnk                      ; Wait for vertical blanking
+               flip 0,0                   ; Reset sprite flipping
+               ldm r0, data.v_anim_c      ; Increment animation counter
                addi r0, 1
                stm r0, data.v_anim_c
-               ldi r0, 0
+               ldi r0, 0                  ; Reset horizontal movement boolean
                stm r0, data.v_hmov
                jmp loop
 
@@ -61,6 +61,11 @@ sub_jump:      ldm r0, data.v_jump
                jz .sub_jump_Z
                cmpi rc, 0
                jnz .sub_jump_Z
+               ldm r0, data.v_hitblk
+.break:        cmpi r0, 1 
+               jnz .sub_jump_Z
+               ldi r0, 0
+               stm r0, data.v_hitblk
                ldi r0, 1
                stm r0, data.v_jump
                ldi rc, -12
@@ -77,6 +82,8 @@ sub_mvplyr:    mov r0, ra
                tsti r0, 1
                jz .sub_mvplyr_a
                ldi rc, 0
+               ldi r0, 1
+               stm r0, data.v_hitblk
                call sub_dy2blk
                add rb, r0
                jmp .sub_mvplyr_Z
@@ -96,7 +103,7 @@ sub_mvleft:    mov r0, ra
                call sub_getblk
                tsti r0, 1
                jnz .sub_mvleft_Z
-.break:        subi ra, 2
+               subi ra, 2
                ldi r0, 1
                stm r0, data.v_lor
                stm r0, data.v_hmov
@@ -194,7 +201,7 @@ sub_getblk:    shr r0, 4
 ;------------------------------------------------------------------------------
 ; <STUB> Load requested level into memory
 ;------------------------------------------------------------------------------
-sub_ldlvl:     ret
+sub_ldlvl:     ret                     ; ROM comes with tilemap already mapped
 
 ;------------------------------------------------------------------------------
 ; Manage controller input and resulting actions
@@ -299,3 +306,4 @@ data.v_jump:   dw 0
 data.v_lor:    dw 0
 data.v_hmov:   dw 0
 data.v_anim_c: dw 0
+data.v_hitblk: dw 0
