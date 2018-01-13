@@ -81,8 +81,13 @@ sub_mvplyr:    mov r0, ra
                call sub_getblk
                tsti r0, 1
                jz .sub_mvplyr_a
+               cmpi rc, 0
+               jz .sub_mvplyr_0
+               sng 0xa2, 0x4382
+               ldi r0, data.sfx_land
+               snp r0, 50
                ldi rc, 0
-               ldi r0, 1
+.sub_mvplyr_0: ldi r0, 1
                stm r0, data.v_hitblk
                call sub_dy2blk
                add rb, r0
@@ -307,3 +312,4 @@ data.v_lor:    dw 0
 data.v_hmov:   dw 0
 data.v_anim_c: dw 0
 data.v_hitblk: dw 0
+data.sfx_land: dw 1500
