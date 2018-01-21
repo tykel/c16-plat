@@ -4,7 +4,32 @@ TILES_LASTX    equ 19
 TILES_Y        equ 15
 TILES_LASTY    equ 14
 
+.. equ 0x00    ;
+<< equ 0x05    ; Platform, Left
+-- equ 0x07    ; Platform, Center
+>> equ 0x09    ; Platform, Right
+I( equ 0x0b    ; Wall, Left
+== equ 0x0d    ; Wall, Top
+)I equ 0x0f    ; Wall, Right
+I/ equ 0x11    ; Wall, Top Left
+\I equ 0x13    ; Wall, Top Right
+I\ equ 0x15    ; Wall, Bottom Left
+/I equ 0x17    ; Wall, Bottom Right
+_0 equ 0x18    ; Background Detail 0
+
+
 importbin gfx/c2b.bin 0 256 data.gfx_c2b
+importbin gfx/lvl_platL.bin 0 128 data.gfx_lvl_platL
+importbin gfx/lvl_platC.bin 0 128 data.gfx_lvl_platC
+importbin gfx/lvl_platR.bin 0 128 data.gfx_lvl_platR
+importbin gfx/lvl_wallL.bin 0 128 data.gfx_lvl_wallL
+importbin gfx/lvl_wallT.bin 0 128 data.gfx_lvl_wallT
+importbin gfx/lvl_wallR.bin 0 128 data.gfx_lvl_wallR
+importbin gfx/lvl_wallTL.bin 0 128 data.gfx_lvl_wallTL
+importbin gfx/lvl_wallTR.bin 0 128 data.gfx_lvl_wallTR
+importbin gfx/lvl_wallBL.bin 0 128 data.gfx_lvl_wallBL
+importbin gfx/lvl_wallBR.bin 0 128 data.gfx_lvl_wallBR
+importbin gfx/lvl_bg0.bin 0 128 data.gfx_lvl_bg0
 
 ;------------------------------------------------------------------------------
 ; Main program
@@ -14,7 +39,7 @@ start:         call sub_ldlvl             ; Decompress level into tilemap memory
                ldi rb, 33
                spr 0x1008                 ; Default sprite size 16x16
 loop:          cls                        ; Clear screen
-               bgc 11                     ; Dark background
+               bgc 0                      ; Dark background
                ldi r1, TILES_LASTY
 .loop_y:       ldi r0, TILES_LASTX        ; Draw level tile sprites
 .loop_x:       mov r2, r1
@@ -22,13 +47,21 @@ loop:          cls                        ; Clear screen
                add r2, r0
                addi r2, data.level
                ldm r3, r2
-               andi r3, 1
+               andi r3, 0xff
+               cmpi r3, 0
                jz .loop_xepi
+               mov r4, r3
                mov r2, r0
                mov r3, r1
                muli r2, TILE_DIM
                muli r3, TILE_DIM
-               drw r2, r3, data.tile
+               tsti r4, 1
+               jz .loop_xA
+               subi r4, 1
+.loop_xA:      subi r4, 4
+               shl r4, 6
+               addi r4, data.gfx_lvl_platL
+               drw r2, r3, r4
 
 .loop_xepi:    subi r0, 1
                jnn .loop_x
@@ -256,56 +289,21 @@ sub_btn_right: ldm r0, 0xfff0
 ;------------------------------------------------------------------------------
 ; DATA 
 ;------------------------------------------------------------------------------
-data.level:    db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,1 
-               db 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 
-               db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-
-data.tile:     db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-               db 0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
-
-data.plyr:     db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-               db 0x99,0x99,0x99,0x99
-
-data.highl:    db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
-               db 0x33,0x33,0x33,0x33
+data.level:    db I/,==,==,==,==,==,==,==,==,==,==,==,==,==,==,==,==,==,==,\I
+               db I(,00,00,00,00,00,00,00,00,00,_0,00,00,00,00,00,00,00,00,)I
+               db I(,00,_0,00,00,00,00,00,00,00,00,00,00,00,00,_0,00,00,00,)I
+               db I(,00,00,00,00,00,_0,00,00,00,00,00,00,00,00,00,00,00,<<,)I
+               db I(,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,)I
+               db I(,00,00,00,00,00,00,00,00,00,00,<<,>>,_0,00,00,00,00,00,)I
+               db I(,00,00,00,00,00,<<,>>,00,00,00,_0,<<,--,--,>>,00,00,00,)I
+               db I(,00,00,_0,00,_0,00,00,00,_0,00,00,00,00,00,00,00,00,00,)I
+               db I(,00,_0,00,00,00,00,00,00,00,00,00,_0,00,00,00,00,00,00,)I
+               db I(,00,_0,00,00,00,00,00,00,00,00,00,00,00,_0,00,00,00,00,)I
+               db I(,--,--,--,>>,00,_0,00,00,==,==,00,00,00,00,00,00,00,00,)I
+               db I(,00,00,_0,00,00,00,00,00,)I,I(,00,00,00,00,00,_0,00,00,)I
+               db I(,00,00,00,00,00,00,00,00,)I,I(,00,00,_0,00,00,00,00,00,)I
+               db I(,00,00,_0,00,00,00,00,00,)I,I(,00,00,00,00,00,00,00,00,)I
+               db I\,--,--,--,--,--,--,--,--,--,--,--,--,--,--,--,--,--,--,/I
 
 data.v_jump:   dw 0
 data.v_lor:    dw 0
