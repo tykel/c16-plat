@@ -11,4 +11,4 @@ then run:
 
 Button A to jump, Left and Right to move.
 
-![Screenshot](https://i.imgur.com/D4tJU7X.png)
+![Screenshot](https://i.imgur.com/aAgj5pK.png)
