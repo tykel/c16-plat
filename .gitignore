@@ -1,0 +1,7 @@
+gfx/*.bin
+level/*.bin
+plat.c16
+plat.sym
+mmap.txt
+tags
+lvler
