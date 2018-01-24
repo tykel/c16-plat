@@ -2,13 +2,18 @@
 
 Experiments in writing platform game code for Chip16.
 
+You need a C compiler, as16 and img16 to compile.
+
+The latter two are available on my Github; search for img16 and chip16.
+
+___
+
 To use, compile:
-`img16 gfx/c2b.bmp -o c2b.bin -k 14`
-`as16 plat.s -o plat.c16`
+`make`
 
 then run:
 `mash16 plat.c16`
 
 Button A to jump, Left and Right to move.
 
-![Screenshot](https://i.imgur.com/aAgj5pK.png)
+![Screenshot](https://i.imgur.com/A7Yy1LR.png)
