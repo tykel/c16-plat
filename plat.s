@@ -13,41 +13,41 @@ importbin level/level0.bin 0 300 data.level
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-start:         nop
-               ldi r0, sub_drwintro       ; Display the intro screen
+_start:        jmp main_init              ; DEBUG: skip the intro
+main_intro:    ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 90
                call sub_wait
                ldi r0, sub_drwintro
                call sub_fadeout
 
+main_init:     bgc 0                      ; Dark background
                call sub_ldlvl             ; Decompress level into tilemap memory
                ldi ra, 260                ; Initial player position
                ldi rb, 33
-               spr 0x1008                 ; Default sprite size 16x16
               
-fade_in:       ldi r0, sub_drwmap
+main_fadein:   ldi r0, sub_drwmap
                call sub_fadein            ; Fade-in from black
 
-loop:          call sub_input             ; Handle input; maybe move L/R or jump
+main_move:     call sub_input             ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
 
-               cls                        ; Clear screen
-               bgc 0                      ; Dark background
+main_draw:     cls                        ; Clear screen
                call sub_drwmap            ; Draw tiles
                call sub_drwplyr           ; Draw player sprite
+               call sub_drwdbg            ; DEBUG: draw debug information
 
-draw_end:      vblnk                      ; Wait for vertical blanking
+main_updcnt:   vblnk                      ; Wait for vertical blanking
                flip 0,0                   ; Reset sprite flipping
                ldm r0, data.v_anim_c      ; Increment animation counter
                addi r0, 1
                stm r0, data.v_anim_c
                ldi r0, 0                  ; Reset horizontal movement boolean
                stm r0, data.v_hmov
-               jmp loop
+               jmp main_move
 
-spin:          vblnk
-               jmp spin
+__spin:        vblnk
+               jmp __spin
 
 ;------------------------------------------------------------------------------
 ; Lighten the palette gradually whilst displaying something
@@ -116,8 +116,7 @@ sub_fadeout:   mov rf, r0
 ;------------------------------------------------------------------------------
 ; Draw the intro screen 
 ;------------------------------------------------------------------------------
-sub_drwintro:  spr 0x0804
-               ldi r0, data.str_copy      ; Draw the copyright text
+sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
                ldi r1, 32
                ldi r2, 224
                call sub_drwstr
@@ -127,7 +126,9 @@ sub_drwintro:  spr 0x0804
 ;------------------------------------------------------------------------------
 ; Draw the tilemap -- iterate over map array
 ;------------------------------------------------------------------------------
-sub_drwmap:    ldi r1, TILES_LASTY
+sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
+               flip 0,0                   ; Reset flip state
+               ldi r1, TILES_LASTY
 .sub_drwmapA:  ldi r0, TILES_LASTX
 .sub_drwmapB:  call sub_drw_t
                subi r0, 1
@@ -188,28 +189,36 @@ sub_jump:      ldm r0, data.v_jump
 ;------------------------------------------------------------------------------
 ; Move player accounting for jumping, gravity, and collisions
 ;------------------------------------------------------------------------------
-sub_mvplyr:    mov r0, ra
+sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                mov r1, rb
                addi r1, 8
                add r1, rc
                call sub_getblk
-               tsti r0, 0x80
+               tsti r0, 0x80                 ; Go to SFX if hit
+               jnz .sub_mvplyr0
+               mov r0, ra                    ; Check block at (x+4, y+8+dy)
+               addi r0, 4
+               mov r1, rb
+               addi r1, 8
+               add r1, rc
+               call sub_getblk
+               tsti r0, 0x80                 ; No further checks if no hit
                jz .sub_mvplyr_a
-               cmpi rc, 0
+.sub_mvplyr0:  cmpi rc, 0                    ; No sound if already grounded
                jz .sub_mvplyr_0
-               sng 0xf2, 0x4382
+               sng 0x00, 0x4300              ; Play short white noise sample
                ldi r0, data.sfx_land
                snp r0, 50
                ldi rc, 0
-.sub_mvplyr_0: ldi r0, 1
+.sub_mvplyr_0: ldi r0, 1                     ; Register hit variable
                stm r0, data.v_hitblk
-               call sub_dy2blk
+               call sub_dy2blk               ; Move to block
                add rb, r0
                jmp .sub_mvplyr_Z
-.sub_mvplyr_a: cmpi rc, 8
+.sub_mvplyr_a: cmpi rc, 8                    ; Increase dy if below maximum
                jge .sub_mvplyr_b
                addi rc, 1
-.sub_mvplyr_b: add rb, rc
+.sub_mvplyr_b: add rb, rc                    ; Add dy to y
 .sub_mvplyr_Z: ret 
 
 ;------------------------------------------------------------------------------
@@ -221,8 +230,11 @@ sub_mvleft:    mov r0, ra
                addi r1, 4
                call sub_getblk
                tsti r0, 0x80
-               jnz .sub_mvleft_Z
-               subi ra, 2
+               jz .sub_mvleftA
+               call sub_dx2lblk
+               add ra, r0
+               jmp .sub_mvleft_Z
+.sub_mvleftA:  subi ra, 2
                ldi r0, 1
                stm r0, data.v_lor
                stm r0, data.v_hmov
@@ -251,35 +263,56 @@ sub_mvright:   mov r0, ra
 ;------------------------------------------------------------------------------
 ; Draw player accounting for direction, movement and animation counter
 ;------------------------------------------------------------------------------
-sub_drwplyr:   ;spr 0x0804
+sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
+               flip 0,0                      ; Reset flip state
                mov r0, ra
                subi r0, 4
                mov r1, rb
-               subi r1, 8
-               ldi r2, data.gfx_c2b
+               subi r1, 7
+.stop:         ldi r2, data.gfx_c2b
                ldm r3, data.v_lor
                cmpi r3, 1
-               jnz .sub_drwplyr_A
+               jnz .sub_drwplyrA
                flip 1, 0
-               jmp .sub_drwplyr_B
-.sub_drwplyr_A: cmpi r3, 2
-               jnz .sub_drwplyr_B
+               jmp .sub_drwplyrB
+.sub_drwplyrA: cmpi r3, 2
+               jnz .sub_drwplyrB
                flip 0,0
-.sub_drwplyr_B: ldm r3, data.v_hmov
+.sub_drwplyrB: ldm r3, data.v_hmov
                cmpi r3, 0
-               jz .sub_drwplyr_Z
+               jz .sub_drwplyrZ
                ldm r3, data.v_anim_c
                andi r3, 0x8
                shl r3, 4
                add r2, r3
-.sub_drwplyr_Z: drw r0, r1, r2
-               ;spr 0x1008
+.sub_drwplyrZ: drw r0, r1, r2
+               ret
+
+;------------------------------------------------------------------------------
+; Display debug info: player x, y. 
+;------------------------------------------------------------------------------
+sub_drwdbg:    mov r0, ra
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 0
+               ldi r2, 0
+               call sub_drwstr            ; Draw x value at (0,0)
+               mov r0, rb
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 48
+               ldi r2, 0
+               call sub_drwstr            ; Draw y value at (48, 0)
                ret
 
 ;------------------------------------------------------------------------------
 ; Display a string, accounting for newlines too. 
 ;------------------------------------------------------------------------------
-sub_drwstr:    ldm r3, r0
+sub_drwstr:    spr 0x0804                 ; Font sprite size is 8x8
+               flip 0,0                   ; Reset flip state
+               ldm r3, r0
                andi r3, 0xff
                cmpi r3, 0
                jz .sub_drwstrZ
@@ -310,6 +343,7 @@ sub_dy2blk:    mov r1, rb
 ; Return remaining pixels to previous 8-aligned x-coordinate
 ;------------------------------------------------------------------------------
 sub_dx2lblk:   mov r1, ra
+               addi r1, 7
                shr r1, 3
                shl r1, 3
                sub r1, ra, r0
@@ -319,7 +353,7 @@ sub_dx2lblk:   mov r1, ra
 ; Return remaining pixels to next 8-aligned x-coordinate
 ;------------------------------------------------------------------------------
 sub_dx2rblk:   mov r1, ra
-               addi r1, 7
+               addi r1, 3
                shr r1, 3
                shl r1, 3
                sub r1, ra, r0
@@ -388,6 +422,35 @@ sub_btn_right: ldm r0, 0xfff0
                ret
 
 ;------------------------------------------------------------------------------
+; Output the contents of r0 to given BCD string - up to 999 supported
+;------------------------------------------------------------------------------
+sub_r2bcd3:    mov r2, r0
+               divi r2, 100
+               muli r2, 100               ; r2 contains the 100's digit, x100
+               mov r3, r0
+               sub r3, r2
+               divi r3, 10
+               muli r3, 10                ; r3 contains the 10's digit, x10
+               mov r4, r3
+               divi r4, 10
+               addi r4, 0x10
+               addi r4, CHAR_OFFS
+               shl r4, 8
+               mov r5, r2
+               divi r5, 100
+               addi r5, 0x10
+               add r4, r5
+               addi r4, CHAR_OFFS         ; Shift and combine 100's & 10's
+               stm r4, r1                 ; Store to string's first 2 bytes
+               addi r1, 2
+               sub r0, r2                 ; Subtract 100's from original
+               sub r0, r3                 ; Then subtract 10's
+               addi r0, 0x10
+               addi r0, CHAR_OFFS
+               stm r0, r1                 ; Store to string's last 2 bytes
+               ret
+
+;------------------------------------------------------------------------------
 ; Wait given number of frames
 ;------------------------------------------------------------------------------
 sub_wait:      vblnk
@@ -402,6 +465,7 @@ sub_wait:      vblnk
 ;------------------------------------------------------------------------------
 data.str_copy: db "Copyright (C) T. Kelsall, 2018."
                db 0
+data.str_bcd3: db 0,0,0,0
 data.palette:  db 0x00,0x00,0x00
                db 0x00,0x00,0x00
                db 0x88,0x88,0x88

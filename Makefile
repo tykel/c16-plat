@@ -8,6 +8,7 @@ all: plat.c16 lvler
 
 plat.c16: $(SRC) $(GFX) $(LEVELS)
 	as16 gfx.s $< -o $@ -m
+	ctags -R .
 
 gfx/c2b.bin: gfx/c2b.bmp
 	img16 $< -o $@ -k 13 
