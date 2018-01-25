@@ -61,3 +61,6 @@ importbin gfx/lvl_Ei1.bin 0 128 data.gfx_lvl_Ei1
 importbin gfx/lvl_Si0.bin 0 128 data.gfx_lvl_Si0
 importbin gfx/lvl_SWi.bin 0 128 data.gfx_lvl_SWi
 
+; Misc.
+importbin gfx/font.bin 0 3072 data.gfx_font
+

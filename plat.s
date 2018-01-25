@@ -4,30 +4,37 @@ TILES_LASTX    equ 19
 TILES_Y        equ 15
 TILES_LASTY    equ 14
 
+CHAR_OFFS      equ 32
+
+data.paletteA  equ 0xf000
+
 importbin level/level0.bin 0 300 data.level
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-start:         call sub_ldlvl             ; Decompress level into tilemap memory
+start:         nop
+               ldi r0, sub_drwintro       ; Display the intro screen
+               call sub_fadein
+               ldi r0, 90
+               call sub_wait
+               ldi r0, sub_drwintro
+               call sub_fadeout
+
+               call sub_ldlvl             ; Decompress level into tilemap memory
                ldi ra, 260                ; Initial player position
                ldi rb, 33
                spr 0x1008                 ; Default sprite size 16x16
-loop:          cls                        ; Clear screen
-               bgc 0                      ; Dark background
-               ldi r1, TILES_LASTY
-.loop_y:       ldi r0, TILES_LASTX        ; Draw level tile sprites
-.loop_x:       call sub_drw_t
+              
+fade_in:       ldi r0, sub_drwmap
+               call sub_fadein            ; Fade-in from black
 
-.loop_xepi:    subi r0, 1
-               jnn .loop_x
-.loop_yepi:    subi r1, 1
-               jnn .loop_y
-.loop_end:     nop
-               
-               call sub_input             ; Handle input; maybe move L/R or jump
+loop:          call sub_input             ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
 
+               cls                        ; Clear screen
+               bgc 0                      ; Dark background
+               call sub_drwmap            ; Draw tiles
                call sub_drwplyr           ; Draw player sprite
 
 draw_end:      vblnk                      ; Wait for vertical blanking
@@ -41,6 +48,93 @@ draw_end:      vblnk                      ; Wait for vertical blanking
 
 spin:          vblnk
                jmp spin
+
+;------------------------------------------------------------------------------
+; Lighten the palette gradually whilst displaying something
+;------------------------------------------------------------------------------
+sub_fadein:    mov rf, r0
+               ldi r6, 7
+.sub_fadeinA:  ldi r0, data.palette       ; First, copy the palette
+               ldi r1, data.paletteA
+               ldi r2, 0
+.sub_fadeinB:  add r0, r2, r3
+               ldm r4, r3
+               mov r5, r4
+               andi r5, 0xff00
+               andi r4, 0x00ff
+               add r1, r2, r3
+               shr r4, r6                 ; Alter the color: gradually less
+               or r5, r4
+               stm r5, r3
+               cmpi r2, 48
+               jz .sub_fadeinC
+               addi r2, 1
+               jmp .sub_fadeinB
+.sub_fadeinC:  pal data.paletteA          ; Load our modified palette
+               call rf                    ; Display using provided subfunction
+               ldi r0, 2                  ; Wait a couple frames to slow effect
+               call sub_wait
+               cmpi r6, 0
+               jz .sub_fadeinZ
+               subi r6, 1
+               jmp .sub_fadeinA
+.sub_fadeinZ:  pal data.palette           ; Reset palette to default
+               ret
+
+;------------------------------------------------------------------------------
+; Darken the palette gradually whilst displaying something
+;------------------------------------------------------------------------------
+sub_fadeout:   mov rf, r0
+               ldi r6, 0
+.sub_fadeoutA: ldi r0, data.palette       ; First, copy the palette
+               ldi r1, data.paletteA
+               ldi r2, 0
+.sub_fadeoutB: add r0, r2, r3
+               ldm r4, r3
+               mov r5, r4
+               andi r5, 0xff00
+               andi r4, 0x00ff
+               add r1, r2, r3
+               shr r4, r6                 ; Alter the color: gradually less
+               or r5, r4
+               stm r5, r3
+               cmpi r2, 48
+               jz .sub_fadeinC
+               addi r2, 1
+               jmp .sub_fadeinB
+.sub_fadeoutC: pal data.paletteA          ; Load our modified palette
+               call rf                    ; Display using provided subfunction
+               ldi r0, 2                  ; Wait a couple frames to slow effect
+               call sub_wait
+               cmpi r6, 0
+               jz .sub_fadeinZ
+               addi r6, 1
+               jmp .sub_fadeinA
+.sub_fadeoutZ: pal data.palette           ; Reset palette to default
+               ret
+
+;------------------------------------------------------------------------------
+; Draw the intro screen 
+;------------------------------------------------------------------------------
+sub_drwintro:  spr 0x0804
+               ldi r0, data.str_copy      ; Draw the copyright text
+               ldi r1, 32
+               ldi r2, 224
+               call sub_drwstr
+               ; Draw the game logo
+               ret
+
+;------------------------------------------------------------------------------
+; Draw the tilemap -- iterate over map array
+;------------------------------------------------------------------------------
+sub_drwmap:    ldi r1, TILES_LASTY
+.sub_drwmapA:  ldi r0, TILES_LASTX
+.sub_drwmapB:  call sub_drw_t
+               subi r0, 1
+               jnn .sub_drwmapB
+               subi r1, 1
+               jnn .sub_drwmapA
+.sub_drwmapZ:  ret
 
 ;------------------------------------------------------------------------------
 ; Draw a tile -- parse metadata bits and display
@@ -183,6 +277,26 @@ sub_drwplyr:   ;spr 0x0804
                ret
 
 ;------------------------------------------------------------------------------
+; Display a string, accounting for newlines too. 
+;------------------------------------------------------------------------------
+sub_drwstr:    ldm r3, r0
+               andi r3, 0xff
+               cmpi r3, 0
+               jz .sub_drwstrZ
+               cmpi r1, 320
+               jl .sub_drwstrA
+               ldi r1, 0
+               addi r2, 12
+.sub_drwstrA:  subi r3, CHAR_OFFS
+               muli r3, 32
+               addi r3, data.gfx_font
+               drw r1, r2, r3
+               addi r0, 1
+               addi r1, 8
+               jmp sub_drwstr
+.sub_drwstrZ:  ret
+
+;------------------------------------------------------------------------------
 ; Return remaining pixels to next 8-aligned y-coordinate
 ;------------------------------------------------------------------------------
 sub_dy2blk:    mov r1, rb
@@ -274,8 +388,36 @@ sub_btn_right: ldm r0, 0xfff0
                ret
 
 ;------------------------------------------------------------------------------
+; Wait given number of frames
+;------------------------------------------------------------------------------
+sub_wait:      vblnk
+               cmpi r0, 0
+               jz .sub_waitZ
+               subi r0, 1
+               jmp sub_wait
+.sub_waitZ:    ret
+
+;------------------------------------------------------------------------------
 ; DATA 
 ;------------------------------------------------------------------------------
+data.str_copy: db "Copyright (C) T. Kelsall, 2018."
+               db 0
+data.palette:  db 0x00,0x00,0x00
+               db 0x00,0x00,0x00
+               db 0x88,0x88,0x88
+               db 0xbf,0x39,0x32
+               db 0xde,0x7a,0xae
+               db 0x4c,0x3d,0x21
+               db 0x90,0x5f,0x25
+               db 0xe4,0x94,0x52
+               db 0xea,0xd9,0x79
+               db 0x53,0x7a,0x3b
+               db 0xab,0xd5,0x4a
+               db 0x25,0x2e,0x38
+               db 0x00,0x46,0x7f
+               db 0x68,0xab,0xcc
+               db 0xbc,0xde,0xe4
+               db 0xff,0xff,0xff
 data.v_jump:   dw 0
 data.v_lor:    dw 0
 data.v_hmov:   dw 0
