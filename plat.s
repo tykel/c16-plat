@@ -6,6 +6,12 @@ TILES_LASTY    equ 14
 
 CHAR_OFFS      equ 32
 
+PLYR_JP_DY     equ -9
+PLYR_JP_DY_FP  equ -36
+PLYR_DY_MAX    equ 5
+PLYR_DY_MAX_FP equ 20
+FP_SHIFT       equ 2
+
 data.paletteA  equ 0xf000
 
 importbin level/level0.bin 0 300 data.level
@@ -183,7 +189,7 @@ sub_jump:      ldm r0, data.v_jump
                stm r0, data.v_hitblk
                ldi r0, 1
                stm r0, data.v_jump
-               ldi rc, -12
+               ldi rc, PLYR_JP_DY_FP   ; PLYR_JP_DY << FP_SHIFT
 .sub_jump_Z:   ret
 
 ;------------------------------------------------------------------------------
@@ -192,7 +198,9 @@ sub_jump:      ldm r0, data.v_jump
 sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                mov r1, rb
                addi r1, 8
-               add r1, rc
+               mov r2, rc
+               sar r2, FP_SHIFT
+               add r1, r2
                call sub_getblk
                tsti r0, 0x80                 ; Go to SFX if hit
                jnz .sub_mvplyr0
@@ -200,7 +208,9 @@ sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                addi r0, 4
                mov r1, rb
                addi r1, 8
-               add r1, rc
+               mov r2, rc
+               sar r2, FP_SHIFT
+               add r1, r2
                call sub_getblk
                tsti r0, 0x80                 ; No further checks if no hit
                jz .sub_mvplyr_a
@@ -215,10 +225,12 @@ sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                call sub_dy2blk               ; Move to block
                add rb, r0
                jmp .sub_mvplyr_Z
-.sub_mvplyr_a: cmpi rc, 8                    ; Increase dy if below maximum
+.sub_mvplyr_a: cmpi rc, PLYR_DY_MAX_FP       ; Increase dy if below maximum
                jge .sub_mvplyr_b
-               addi rc, 1
-.sub_mvplyr_b: add rb, rc                    ; Add dy to y
+               addi rc, 3
+.sub_mvplyr_b: mov r2, rc
+               sar r2, FP_SHIFT
+               add rb, r2                    ; Add dy to y
 .sub_mvplyr_Z: ret 
 
 ;------------------------------------------------------------------------------
