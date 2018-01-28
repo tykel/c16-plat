@@ -7,65 +7,74 @@ name level/level0.bin
 
 .tiles
 
-0 gfx/lvl_bg0.bin 1
-1 gfx/lvl_bg1.bin 1
-2 gfx/lvl_bg2.bin 1
-3 gfx/lvl_bg3.bin 1
-4 gfx/lvl_bg4.bin 1
-5 gfx/lvl_bg5.bin 1
-6 gfx/lvl_bg6.bin 1
-7 gfx/lvl_bg7.bin 1
-8 gfx/lvl_candle0.bin 1
-9 gfx/lvl_candle1_0.bin 2
-10 gfx/lvl_candle1_1.bin 1
-11 gfx/lvl_Eo0.bin 1
-12 gfx/lvl_Eo1.bin 1
-13 gfx/lvl_Eo2.bin 1
-14 gfx/lvl_NEio.bin 1
-15 gfx/lvl_NEo.bin 1
-16 gfx/lvl_No0.bin 1
-17 gfx/lvl_No1.bin 1
-18 gfx/lvl_No2.bin 1
-19 gfx/lvl_No4.bin 1
-20 gfx/lvl_NWio.bin 1
-21 gfx/lvl_NWo.bin 1
-22 gfx/lvl_SEo.bin 1
-23 gfx/lvl_So0.bin 1
-24 gfx/lvl_So1.bin 1
-25 gfx/lvl_So2.bin 1
-26 gfx/lvl_So3.bin 1
-27 gfx/lvl_SWo.bin 1
-28 gfx/lvl_Wo0.bin 1
-29 gfx/lvl_Wo1.bin 1
-30 gfx/lvl_Ni0.bin 1
-31 gfx/lvl_SEi.bin 1
-32 gfx/lvl_Ni1.bin 1
-33 gfx/lvl_Si1.bin 1
-34 gfx/lvl_Ei0.bin 1
-35 gfx/lvl_Wi1.bin 1
-36 gfx/lvl_NEi.bin 1
-37 gfx/lvl_Wi0.bin 1
-38 gfx/lvl_Ei1.bin 1
-39 gfx/lvl_Si0.bin 1
-40 gfx/lvl_SWi.bin 1
+0 gfx/tile00.bin 1
+1 gfx/tile01.bin 1
+2 gfx/tile02.bin 1
+3 gfx/tile03.bin 1
+4 gfx/tile04.bin 1
+5 gfx/tile05.bin 1
+6 gfx/tile06.bin 1
+7 gfx/tile07.bin 1
+8 gfx/tile08.bin 1
+9 gfx/tile09.bin 1
+10 gfx/tile10.bin 1
+11 gfx/tile11.bin 1
+12 gfx/tile12.bin 1
+13 gfx/tile13.bin 1
+14 gfx/tile14.bin 1
+15 gfx/tile15.bin 1
+16 gfx/tile16.bin 1
+17 gfx/tile17.bin 1
+18 gfx/tile18.bin 1
+19 gfx/tile19.bin 1
+20 gfx/tile20.bin 1
+21 gfx/tile21.bin 1
+22 gfx/tile22.bin 1
+23 gfx/tile23.bin 1
+24 gfx/tile24.bin 1
+25 gfx/tile25.bin 1
+26 gfx/tile26.bin 1
+27 gfx/tile27.bin 1
+28 gfx/tile28.bin 1
+29 gfx/tile29.bin 1
+30 gfx/tile30.bin 1
+31 gfx/tile31.bin 1
+32 gfx/tile32.bin 1
+33 gfx/tile33.bin 1
+34 gfx/tile34.bin 1
+35 gfx/tile35.bin 1
+36 gfx/tile36.bin 1
+37 gfx/tile37.bin 1
+38 gfx/tile38.bin 1
+39 gfx/tile39.bin 1
+40 gfx/tile40.bin 1
+41 gfx/tile41.bin 1
+42 gfx/tile42.bin 1
+43 gfx/tile43.bin 2
+44 gfx/tile44.bin 1
+45 gfx/tile45.bin 1
+46 gfx/tile46.bin 1
+47 gfx/tile47.bin 1
+48 gfx/tile48.bin 1
+49 gfx/tile49.bin 1
 
 .map
 
-22 16 17 18 19 16 17 17 19 16 17 18 19 16 17 18 19 16 17 15
-28 20 30 32 30 32 30 32 30 32 30 32 30 32 30 32 30 32 36 11
-29 37 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  34 12
-28 35 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  38 13
-29 37 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  34 11
-28 35 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  38 12
-29 37 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  34 13
-28 35 _  _  _  _  _  _  _  _  _  _  _  _  0  _  _  _  38 11
-29 37 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  34 12
-28 35 _  _  _  _  _  _  _  _  _  _  1  _  _  _  _  _  38 13
-29 37 _  _  _  _  _  _  _  _  34 37 0  _  _  _  _  _  34 11
-28 35 9  _  _  _  _  _  _  _  38 35 _  _  _  _  0  9  38 12
-29 37 8  _  _  _  _  _  _  _  34 37 _  _  _  _  _  8  34 13
-28 40 39 33 39 33 39 33 39 33 31 40 39 33 39 33 39 33 31 11
-27 23 24 25 23 24 25 23 24 25 23 24 25 23 24 25 23 24 25 22
+0  1  2  3  4  1  2  3  4  1  2  3  4  1  2  3  4  1  2  5 
+7  8  9  10 9  10 9  10 9  10 9  10 9  10 9  10 9  10 11 12
+14 15 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  18 19
+21 22 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  25 26
+14 15 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  18 33
+21 22 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  18 19
+14 15 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  18 26
+21 22 _  _  _  _  _  _  _  _  _  _  _  _  13 _  _  _  25 33
+14 15 _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  18 19
+21 22 _  _  _  _  _  _  _  _  41 _  46 _  _  _  _  _  25 26
+14 15 _  _  _  _  _  _  _  _  48 47 20 _  _  _  _  _  25 33
+21 22 43 _  _  _  _  _  _  _  16 17 _  _  _  _  0  43 18 19
+14 15 45 _  _  _  _  _  _  34 18 22 _  _  _  _  _  45 18 26
+28 29 30 31 30 30 30 31 30 31 32 29 30 30 31 30 30 30 32 33
+35 36 37 38 39 36 37 38 39 36 36 37 38 39 36 36 37 38 39 40
 
 .solid
 

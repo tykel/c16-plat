@@ -19,8 +19,11 @@ importbin level/level0.bin 0 300 data.level
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp main_init              ; DEBUG: skip the intro
-main_intro:    ldi r0, sub_drwintro       ; Display the intro screen
+_start:        ;jmp main_init              ; DEBUG: skip the intro
+main_intro:    sng 0xb2, 0x822a
+               ldi r0, data.sfx_intro
+               snp r0, 100 
+               ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 90
                call sub_wait
@@ -164,7 +167,7 @@ sub_drw_t:     mov r2, r1
                muli r3, TILE_DIM
                subi r4, 1
                shl r4, 7
-               addi r4, data.gfx_lvl_bg0
+               addi r4, data.gfx_tilemap
                cmpi r5, 0
                jz .sub_drw_tA
                ldm r5, data.v_anim_c   ; animated tiles get 1 frame / 32 vblnk
@@ -500,3 +503,4 @@ data.v_hmov:   dw 0
 data.v_anim_c: dw 0
 data.v_hitblk: dw 0
 data.sfx_land: dw 1000
+data.sfx_intro: dw 500

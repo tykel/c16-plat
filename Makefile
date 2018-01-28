@@ -1,5 +1,5 @@
 SRC:=plat.s
-GFX_SRC:=$(wildcard gfx/*.bmp)
+GFX_SRC:=gfx/tilemap.bmp gfx/c2b.bmp gfx/font.bmp
 GFX=$(patsubst gfx/%.bmp,gfx/%.bin,$(GFX_SRC))
 LEVELS_SRC:=$(wildcard level/*.src)
 LEVELS=$(patsubst level/%.src,level/%.bin,$(LEVELS_SRC))
@@ -15,6 +15,12 @@ gfx/c2b.bin: gfx/c2b.bmp
 
 gfx/%.bin: gfx/%.bmp
 	img16 $< -o $@ -k 4
+
+gfx/tilemap.bmp: gfx/o-tiles.bmp
+	convert gfx/o-tiles.bmp -crop 7x7-1@\!-1@\! +repage +adjoin gfx/tile-%02d.bmp
+	mogrify -crop 16x16+0+0 gfx/tile-*.bmp
+	convert gfx/tile-*.bmp -append gfx/tilemap.bmp
+	rm gfx/tile-*.bmp
 
 lvler: tool/lvler.c
 	gcc $< -o $@ -O2
