@@ -1,26 +1,33 @@
-TILE_DIM       equ 16
-TILES_X        equ 20
-TILES_LASTX    equ 19
-TILES_Y        equ 15
-TILES_LASTY    equ 14
+TILE_DIM          equ 16
+TILES_X           equ 20
+TILES_LASTX       equ 19
+TILES_Y           equ 15
+TILES_LASTY       equ 14
 
-CHAR_OFFS      equ 32
+CHAR_OFFS         equ 32
 
-PLYR_JP_DY     equ -9
-PLYR_JP_DY_FP  equ -36
-PLYR_DY_MAX    equ 5
-PLYR_DY_MAX_FP equ 20
-FP_SHIFT       equ 2
+PLYR_JP_DY        equ -9
+PLYR_JP_DY_FP     equ -36
+PLYR_DY_MAX       equ 5
+PLYR_DY_MAX_FP    equ 20
+FP_SHIFT          equ 2
 
-data.paletteA  equ 0xf000
+PLYR_DY_ZERO      equ 0
+PLYR_DY_NEG       equ 1
+PLYR_DY_NEG_OFFS  equ 256
+PLYR_DY_POS       equ 2
+PLYR_DY_POS_OFFS  equ 384
+PLYR_DY_POS_ROFFS equ 128
+
+data.paletteA     equ 0xf000
 
 importbin level/level0.bin 0 300 data.level
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        ;jmp main_init              ; DEBUG: skip the intro
-main_intro:    sng 0xb2, 0x822a
+_start:        jmp main_init              ; DEBUG: skip the intro
+main_intro:    sng 0xd2, 0x622a
                ldi r0, data.sfx_intro
                snp r0, 100 
                ldi r0, sub_drwintro       ; Display the intro screen
@@ -284,20 +291,27 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
                subi r0, 4
                mov r1, rb
                subi r1, 7
-.stop:         ldi r2, data.gfx_c2b
+               ldi r2, data.gfx_c2b
                ldm r3, data.v_lor
-               cmpi r3, 1
+               cmpi r3, 1                    ; If left-facing, flip horiz.
                jnz .sub_drwplyrA
                flip 1, 0
                jmp .sub_drwplyrB
-.sub_drwplyrA: cmpi r3, 2
+.sub_drwplyrA: cmpi r3, 2                    ; If right-facing, reset flip
                jnz .sub_drwplyrB
                flip 0,0
-.sub_drwplyrB: ldm r3, data.v_hmov
-               cmpi r3, 0
+.sub_drwplyrB: cmpi rc, 0                    ; If no y motion, running anim.
+               jz .sub_drwplyrD              ; Else if non-zero y motion...
+               addi r2, PLYR_DY_NEG_OFFS     ; ... Offset to jump sprite
+               cmpi rc, 0
+               jl .sub_drwplyrZ
+               addi r2, PLYR_DY_POS_ROFFS    ; If dy>0, offset to fall sprite
+               jmp .sub_drwplyrZ
+.sub_drwplyrD: ldm r3, data.v_hmov           ; Cycle through running frames
+               cmpi r3, 0                    ; using animation counter
                jz .sub_drwplyrZ
-               ldm r3, data.v_anim_c
-               andi r3, 0x8
+               ldm r3, data.v_anim_c         ; Each anim. frame lasts 8 vblnks
+               andi r3, 0x8                  ; 8/60 = 0.133... so 7.5 Hz
                shl r3, 4
                add r2, r3
 .sub_drwplyrZ: drw r0, r1, r2

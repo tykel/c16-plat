@@ -16,7 +16,7 @@
 ;------------------------------------------------------------------------------
 
 ; Player sprites
-importbin gfx/c2b.bin 0 256 data.gfx_c2b
+importbin gfx/c2b.bin 0 512 data.gfx_c2b
 
 ; Level tiles
 importbin gfx/tilemap.bin 0 6272 data.gfx_tilemap
