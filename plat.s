@@ -40,7 +40,7 @@ main_intro:    sng 0xd2, 0x622a
 main_init:     bgc 0                      ; Dark background
                call sub_ldlvl             ; Decompress level into tilemap memory
                ldi ra, 260                ; Initial player position
-               ldi rb, 33
+               ldi rb, 192
               
 main_fadein:   ldi r0, sub_drwmap
                call sub_fadein            ; Fade-in from black
@@ -200,6 +200,9 @@ sub_jump:      ldm r0, data.v_jump
                ldi r0, 1
                stm r0, data.v_jump
                ldi rc, PLYR_JP_DY_FP   ; PLYR_JP_DY << FP_SHIFT
+               ldi r0, data.sfx_jump
+               sng 0x00, 0x0300
+               snp r0, 50 
 .sub_jump_Z:   ret
 
 ;------------------------------------------------------------------------------
@@ -516,5 +519,6 @@ data.v_lor:    dw 0
 data.v_hmov:   dw 0
 data.v_anim_c: dw 0
 data.v_hitblk: dw 0
+data.sfx_jump: dw 700
 data.sfx_land: dw 1000
 data.sfx_intro: dw 500
