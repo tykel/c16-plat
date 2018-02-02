@@ -21,13 +21,13 @@ PLYR_DY_POS_ROFFS equ 128
 
 data.paletteA     equ 0xf000
 
-importbin level/level0.bin 0 300 data.level
+importbin level/level0.bin 0 600 data.level
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
 _start:        jmp main_init              ; DEBUG: skip the intro
-main_intro:    sng 0xd2, 0x622a
+main_intro:    sng 0xd2, 0x602a
                ldi r0, data.sfx_intro
                snp r0, 100 
                ldi r0, sub_drwintro       ; Display the intro screen
@@ -159,6 +159,7 @@ sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
 sub_drw_t:     mov r2, r1
                muli r2, TILES_X
                add r2, r0
+               shl r2, 1
                addi r2, data.level
                ldm r3, r2
                mov r5, r3
@@ -398,6 +399,7 @@ sub_getblk:    shr r0, 4
                shr r1, 4
                muli r1, TILES_X
                add r1, r0
+               shl r1, 1
                addi r1, data.level
                ldm r0, r1
                andi r0, 0xff

@@ -14,13 +14,18 @@ gfx/c2b.bin: gfx/c2b.bmp
 	img16 $< -o $@ -k 13 
 
 gfx/%.bin: gfx/%.bmp
-	img16 $< -o $@ -k 4
+	img16 $< -o $@ -k 1
 
-gfx/tilemap.bmp: gfx/o-tiles.bmp
-	convert gfx/o-tiles.bmp -crop 7x7-1@\!-1@\! +repage +adjoin gfx/tile-%02d.bmp
-	mogrify -crop 16x16+0+0 gfx/tile-*.bmp
-	convert gfx/tile-*.bmp -append gfx/tilemap.bmp
-	rm gfx/tile-*.bmp
+gfx/tilemap.bmp: gfx/n-tiles.bmp
+	convert $< -crop 16x16 +repage +adjoin /tmp/tile-%02d.bmp
+	convert /tmp/tile-*.bmp -append $@
+	rm /tmp/tile-*.bmp
+
+#gfx/tilemap.bmp: gfx/o-tiles.bmp
+#	convert gfx/o-tiles.bmp -crop 7x8-1@\!-1@\! +repage +adjoin gfx/tile-%02d.bmp
+#	mogrify -crop 16x16+0+0 gfx/tile-*.bmp
+#	convert gfx/tile-*.bmp -append gfx/tilemap.bmp
+#	rm gfx/tile-*.bmp
 
 lvler: tool/lvler.c
 	gcc $< -o $@ -O2

@@ -18,7 +18,7 @@ struct tile {
    int frames;
 } tiles[256];
 
-uint8_t *map;
+uint16_t *map;
 int mapy = 0;
 
 int (*readln_fptr)(FILE *, char *);
@@ -46,7 +46,7 @@ int readln_metadata(FILE *f, char *line)
    }
 
    if (meta.width > 0 && meta.height > 0) {
-      map = calloc(1, meta.width * meta.height);
+      map = calloc(1, 2 * meta.width * meta.height);
    }
    return 0;
 }
@@ -193,7 +193,7 @@ int main(int argc, char **argv)
       return 1;
    }
    file_output = fopen(meta.name, "wb");
-   fwrite(map, meta.width * meta.height, 1, file_output);
+   fwrite(map, 2 * meta.width * meta.height, 1, file_output);
    fclose(file_output);
 
    free(map);
