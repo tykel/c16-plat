@@ -311,7 +311,7 @@ int main(int argc, char **argv)
       fwrite(map, file_output_len, 1, file_output);
    }
    fclose(file_output);
-   printf("importbin %s 0 %d data.%s\n", meta.name, file_output_len, meta.name);
+   printf("importbin %s 0 %d data.%s\n", argv[3], file_output_len, meta.name);
 
    free(map);
 
