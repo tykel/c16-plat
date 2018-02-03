@@ -39,6 +39,7 @@ main_intro:    sng 0xd2, 0x602a
 main_init:     bgc 0                      ; Dark background
                ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
+               call sub_rndbg
                ldi ra, 260                ; Initial player position
                ldi rb, 192
               
@@ -433,6 +434,29 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
                jmp .sub_ldlvlB
 .sub_ldlvlC:   ret 
 ;------------------------------------------------------------------------------
+; Add some random background tiles to level map
+;------------------------------------------------------------------------------
+sub_rndbg:     ldi r0, data.level
+               ldi r1, data.level
+               addi r1, 600               ; 15 x 20 x 2 bytes
+.sub_rndbgA:   cmp r0, r1
+               jz .sub_rndbgZ
+               ldm r2, r0
+               cmpi r2, 0                 ; Only look at empty tiles
+               jnz .sub_rndbgC
+               rnd r3, 3
+               cmpi r3, 0                 ; Maybe overwrite this existing tile
+               jnz .sub_rndbgC
+.sub_rndbgB:   rnd r3, 4                  ; Choose random tile from bgtiles
+               shl r3, 1
+               addi r3, data.bgtiles
+               ldm r3, r3                 ; Look up that tile
+               addi r3, 1
+               stm r3, r0                 ; And store it at the empty tile loc.
+.sub_rndbgC:   addi r0, 2
+               jmp .sub_rndbgA
+.sub_rndbgZ:   ret
+;------------------------------------------------------------------------------
 ; Manage controller input and resulting actions
 ;------------------------------------------------------------------------------
 sub_input:     call sub_btn_a
@@ -538,6 +562,7 @@ data.palette:  db 0x00,0x00,0x00
                db 0x68,0xab,0xcc
                db 0xbc,0xde,0xe4
                db 0xff,0xff,0xff
+data.bgtiles:  dw 5, 6, 28, 29, 30
 data.v_jump:   dw 0
 data.v_lor:    dw 0
 data.v_hmov:   dw 0
