@@ -1,12 +1,9 @@
 .meta
-
 width 20
 height 15
 name level/level0.bin
 
-
 .tiles
-
 0 gfx/tile00.bin 1
 1 gfx/tile01.bin 1
 2 gfx/tile02.bin 1
@@ -59,7 +56,6 @@ name level/level0.bin
 49 gfx/tile49.bin 1
 
 .map
-
 0  1  2  3  1  2  3  1  2  3  1  2  3  1  2  3  1  2  3  4 
 7  8  9  10 9  8  9  8  9  10 9  8  9  10 9  8  9  10 8  11
 14 15 _  _  _  _  _  _  28 _  _  _  _  _  _  _  _  _  17 18
@@ -77,7 +73,6 @@ name level/level0.bin
 21 22 23 24 22 24 23 22 22 23 22 23 22 22 24 23 22 22 24 25
 
 .solid
-
 1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
 1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
 1  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  1
