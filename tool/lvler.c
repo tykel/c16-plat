@@ -265,9 +265,13 @@ int main(int argc, char **argv)
 {
    FILE *file_input;
    FILE *file_output;
+   size_t file_output_len;
 
-   if (argc < 2 || !strncmp(argv[1], "-h", 2) || !strncmp(argv[1], "--help", 6)) {
-      printf("usage: lvler <file.txt>\n");
+   if (argc < 4 || !strncmp(argv[1], "-h", 2) || !strncmp(argv[1], "--help", 6) ||
+       strncmp(argv[2], "-o", 2)) {
+      printf("usage: lvler <infile> -o <outfile> [--rle]\n");
+      printf("       lvler test\n");
+      return 0;
    }
 
    if (!strncmp(argv[1], "test", 4)) {
@@ -295,17 +299,19 @@ int main(int argc, char **argv)
       return 1;
    }
 
-   file_output = fopen(meta.name, "wb");
+   file_output = fopen(argv[3], "wb");
    
-   if (argc > 2 && !strncmp(argv[2], "--rle", 5)) {
+   if (argc > 4 && !strncmp(argv[4], "--rle", 5)) {
       uint8_t *rle_map;
-      size_t len = compress(map, meta.width, meta.height, &rle_map);
-      fwrite(rle_map, len, 1, file_output);
+      file_output_len = compress(map, meta.width, meta.height, &rle_map);
+      fwrite(rle_map, file_output_len, 1, file_output);
       free(rle_map);
    } else {
-      fwrite(map, 2 * meta.width * meta.height, 1, file_output);
+      file_output_len = meta.width * meta.height * sizeof(int16_t);
+      fwrite(map, file_output_len, 1, file_output);
    }
    fclose(file_output);
+   printf("importbin %s 0 %d data.%s\n", meta.name, file_output_len, meta.name);
 
    free(map);
 
