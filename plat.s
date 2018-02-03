@@ -444,7 +444,7 @@ sub_rndbg:     ldi r0, data.level
                ldm r2, r0
                cmpi r2, 0                 ; Only look at empty tiles
                jnz .sub_rndbgC
-               rnd r3, 3
+               rnd r3, 5
                cmpi r3, 0                 ; Maybe overwrite this existing tile
                jnz .sub_rndbgC
 .sub_rndbgB:   rnd r3, 4                  ; Choose random tile from bgtiles
@@ -475,7 +475,10 @@ sub_input:     call sub_btn_a
                cmpi r0, 1
                jnz .sub_input_Z
                call sub_mvright
-.sub_input_Z:  ret
+.sub_input_Z:  call sub_btn_start         ; DEBUG: Start button resets the game
+               cmpi r0, 1
+               jz reset
+               ret
 
 ;------------------------------------------------------------------------------
 ; Return whether button A is pressed
@@ -499,6 +502,14 @@ sub_btn_left:  ldm r0, 0xfff0
 sub_btn_right: ldm r0, 0xfff0
                andi r0, 0x08
                shr r0, 3
+               ret
+
+;------------------------------------------------------------------------------
+; Return whether button Start is pressed
+;------------------------------------------------------------------------------
+sub_btn_start: ldm r0, 0xfff0
+               andi r0, 0x20
+               shr r0, 5
                ret
 
 ;------------------------------------------------------------------------------
@@ -539,6 +550,13 @@ sub_wait:      vblnk
                subi r0, 1
                jmp sub_wait
 .sub_waitZ:    ret
+
+;------------------------------------------------------------------------------
+; Reset the program
+;------------------------------------------------------------------------------
+reset:         pop r0                     ; The jmp here was from a call
+               cls
+               jmp _start
 
 ;------------------------------------------------------------------------------
 ; DATA 
