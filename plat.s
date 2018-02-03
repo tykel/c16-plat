@@ -19,9 +19,10 @@ PLYR_DY_POS       equ 2
 PLYR_DY_POS_OFFS  equ 384
 PLYR_DY_POS_ROFFS equ 128
 
+data.level        equ 0xa000
 data.paletteA     equ 0xf000
 
-importbin level/level0.bin 0 600 data.level
+importbin level/level0.bin 0 400 data.level0
 
 ;------------------------------------------------------------------------------
 ; Main program
@@ -38,6 +39,7 @@ main_intro:    sng 0xd2, 0x602a
                call sub_fadeout
 
 main_init:     bgc 0                      ; Dark background
+               ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                ldi ra, 260                ; Initial player position
                ldi rb, 192
@@ -406,10 +408,34 @@ sub_getblk:    shr r0, 4
                ret
 
 ;------------------------------------------------------------------------------
-; <STUB> Load requested level into memory
+; Load requested level into memory. Decode using a simple RLE scheme.
+;
+; Data layout (example): 10 00 00 03 ff 0d
+; Meaning: 
+; - Section is 0x0010 (16) bytes long.
+; - Repeat byte '0x00' 3 times. Repeat byte '0xff' 13 times.
 ;------------------------------------------------------------------------------
-sub_ldlvl:     ret                     ; ROM comes with tilemap already mapped
-
+sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
+               bgc 5
+               ldi r5, data.level         ; Destination pointer initial value
+               ldm r1, r0                 ; Load tiles' RLE section size
+               ldi r2, 0                  ; Section input byte counter
+.sub_ldlvlA:   cmp r2, r1                 ; If we read all section bytes, end
+               jz .sub_ldlvlC
+               addi r2, 2                 ; Increment input byte counter
+               mov r3, r2
+               add r3, r0                 ; Current offset into section
+               ldm r3, r3                 ; Read value (lo) and reps (hi)
+               mov r4, r3
+               andi r3, 0xff              ; Byte value to repeat
+               shr r4, 8                  ; Number of repetitions (max. 255)
+.sub_ldlvlB:   stm r3, r5                 ; Write repeated byte
+               addi r5, 2                 ; Increment destination pointer
+               subi r4, 1                 ; Decrement counter
+               jz .sub_ldlvlA
+               jmp .sub_ldlvlB
+.sub_ldlvlC:   bgc 0
+               ret 
 ;------------------------------------------------------------------------------
 ; Manage controller input and resulting actions
 ;------------------------------------------------------------------------------

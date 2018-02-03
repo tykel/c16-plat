@@ -31,4 +31,4 @@ lvler: tool/lvler.c
 	gcc $< -o $@ -O2
 
 level/%.bin: level/%.src lvler
-	./lvler $<
+	./lvler $< --rle

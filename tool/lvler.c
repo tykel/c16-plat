@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
+#define expect_eq(x,y,s) do{if((x)!=(y)){fprintf(stderr,"test failed: %s. Expected %d, got %d\n",(s),(x),(y));}else{printf("test passed: %s\n",(s));}}while(0);
+#define expect_eqmem(x,y,s) do{if(memcmp((x),(y),sizeof((x)))){fprintf(stderr,"test failed: %s\n",s);}else{printf("test passed: %s\n",(s));}}while(0);
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
 
 char line[256];
@@ -22,6 +25,16 @@ uint16_t *map;
 int mapy = 0;
 
 int (*readln_fptr)(FILE *, char *);
+
+void print_buffer(uint8_t *buf, size_t len)
+{
+   uint8_t *p = buf;
+   uint8_t *end = buf + len;
+   while (p < end) {
+      printf("%02x ", *p++);
+   }
+   printf("\n");
+}
 
 int readln_metadata(FILE *f, char *line)
 {
@@ -86,6 +99,10 @@ int readln_map(FILE *f, char *line)
       return 0;
    }
    if (line[0] == '\n') {
+      mapy += 1;
+      return 0;
+   }
+   if (feof(f)) {
       return 0;
    }
 
@@ -121,6 +138,10 @@ int readln_solid(FILE *f, char *line)
       return 0;
    }
    if (line[0] == '\n') {
+      mapy += 1;
+      return 0;
+   }
+   if (feof(f)) {
       return 0;
    }
 
@@ -170,6 +191,75 @@ int readln(FILE *f, char *line)
    return 0;
 }
 
+size_t rle(uint8_t *src, uint8_t *dst, size_t len)
+{
+   uint8_t byte_to_rep = *src;
+   uint8_t byte_count = 0;
+   uint8_t *s = src;
+   uint8_t *d = dst;
+
+   while (s < src + len) {
+      if (*s == byte_to_rep && byte_count < 0xff) {
+         ++byte_count;
+      } else {
+         *d++ = byte_to_rep;
+         *d++ = byte_count;
+         byte_to_rep = *s;
+         byte_count = 1;
+      }
+      ++s;
+   }
+   *d++ = byte_to_rep;
+   *d++ = byte_count;
+   return d - dst;
+}
+
+size_t compress(uint16_t *map, int cols, int rows, uint8_t **dst)
+{
+   const size_t bufsz = rows * cols;
+   uint8_t *tmp_tiles = calloc(1, bufsz);
+   uint8_t *rle_tiles = calloc(1, 2 * bufsz);
+   uint8_t *rle_map;
+   uint8_t *tmp;
+   int x, y;
+   int tiles_rle_size = 0;
+   int total_rle_size = 0;
+
+   for (y = 0; y < rows; y++) {
+      for (x = 0; x < cols; x++) {
+         uint16_t val = map[(y * cols + x)];
+         tmp_tiles[y * cols + x] = val & 0xff;//0x7f;
+      }
+   }
+   
+   tiles_rle_size = rle(tmp_tiles, rle_tiles, bufsz);
+#ifdef DEBUG
+   printf("Raw tiles data:\n");
+   print_buffer(tmp_tiles, bufsz);
+   printf("RLE tiles data:\n");
+   print_buffer(rle_tiles, tiles_rle_size);
+   printf("RLE size ratio for tiles data: % 3.2f %%\n", 100.f*(float)tiles_rle_size/(float)bufsz);
+#endif
+
+   total_rle_size = tiles_rle_size + 2;
+   printf("Raw map size: %d bytes\n", meta.width * meta.height * 2);
+   printf("RLE map size: %d bytes\n", total_rle_size);
+   printf("RLE size is % .2f %% of raw\n", 100.f*(float)total_rle_size/(float)(meta.width * meta.height * 2));
+
+   /* Allow for the section sizes too! */
+   rle_map = malloc(total_rle_size);
+   tmp = rle_map;
+   *(int16_t *)tmp = tiles_rle_size;
+   tmp += 2;
+   memcpy(tmp, rle_tiles, tiles_rle_size);
+
+   *dst = rle_map;
+   
+   free(tmp_tiles);
+   free(rle_tiles);
+
+   return total_rle_size;
+}
 
 int main(int argc, char **argv)
 {
@@ -178,6 +268,18 @@ int main(int argc, char **argv)
 
    if (argc < 2 || !strncmp(argv[1], "-h", 2) || !strncmp(argv[1], "--help", 6)) {
       printf("usage: lvler <file.txt>\n");
+   }
+
+   if (!strncmp(argv[1], "test", 4)) {
+      {
+         uint8_t src[] = { 0, 0, 0, 0, 0, 1, 1, 0 };
+         uint8_t expected_dst[] = { 0, 5, 1, 2, 0, 1 };
+         uint8_t actual_dst[256] = { 0 };
+         size_t len = rle(src, actual_dst, sizeof(src));
+         expect_eq(sizeof(expected_dst), len, "RLE test (size)");
+         expect_eqmem(expected_dst, actual_dst, "RLE test (contents)"); 
+      }
+      return 0;
    }
 
    readln_fptr = readln_metadata;
@@ -192,8 +294,17 @@ int main(int argc, char **argv)
       fprintf(stderr, "error: no level name set in .meta section\n");
       return 1;
    }
+
    file_output = fopen(meta.name, "wb");
-   fwrite(map, 2 * meta.width * meta.height, 1, file_output);
+   
+   if (argc > 2 && !strncmp(argv[2], "--rle", 5)) {
+      uint8_t *rle_map;
+      size_t len = compress(map, meta.width, meta.height, &rle_map);
+      fwrite(rle_map, len, 1, file_output);
+      free(rle_map);
+   } else {
+      fwrite(map, 2 * meta.width * meta.height, 1, file_output);
+   }
    fclose(file_output);
 
    free(map);
