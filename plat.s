@@ -22,8 +22,6 @@ PLYR_DY_POS_ROFFS equ 128
 data.level        equ 0xa000
 data.paletteA     equ 0xf000
 
-importbin level/level0.bin 0 400 data.level0
-
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
@@ -416,7 +414,6 @@ sub_getblk:    shr r0, 4
 ; - Repeat byte '0x00' 3 times. Repeat byte '0xff' 13 times.
 ;------------------------------------------------------------------------------
 sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
-               bgc 5
                ldi r5, data.level         ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
                ldi r2, 0                  ; Section input byte counter
@@ -434,8 +431,7 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
                subi r4, 1                 ; Decrement counter
                jz .sub_ldlvlA
                jmp .sub_ldlvlB
-.sub_ldlvlC:   bgc 0
-               ret 
+.sub_ldlvlC:   ret 
 ;------------------------------------------------------------------------------
 ; Manage controller input and resulting actions
 ;------------------------------------------------------------------------------

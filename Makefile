@@ -1,4 +1,4 @@
-SRC:=plat.s
+SRC:=gfx.s level.s plat.s
 GFX_SRC:=gfx/tilemap.bmp gfx/c2b.bmp gfx/font.bmp
 GFX=$(patsubst gfx/%.bmp,gfx/%.bin,$(GFX_SRC))
 LEVELS_SRC:=$(wildcard level/*.src)
@@ -7,7 +7,7 @@ LEVELS=$(patsubst level/%.src,level/%.bin,$(LEVELS_SRC))
 all: plat.c16 lvler
 
 plat.c16: $(SRC) $(GFX) $(LEVELS)
-	as16 gfx.s $< -o $@ -m
+	as16 $(SRC) -o $@ -m
 	ctags -R .
 
 gfx/c2b.bin: gfx/c2b.bmp
@@ -31,4 +31,4 @@ lvler: tool/lvler.c
 	gcc $< -o $@ -O2
 
 level/%.bin: level/%.src lvler
-	./lvler $< --rle
+	./lvler $< -o $@ --rle | grep importbin > level.s
