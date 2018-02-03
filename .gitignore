@@ -1,4 +1,5 @@
 gfx/*.bin
+gfx/old
 level/*.bin
 plat.c16
 plat.sym
