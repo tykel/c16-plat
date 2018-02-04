@@ -191,26 +191,41 @@ int readln(FILE *f, char *line)
    return 0;
 }
 
+/* 
+ * Custom RLE where non-zero values are encoded literally. Only zero runs are
+ * encoded as value + run.
+ */
 size_t rle(uint8_t *src, uint8_t *dst, size_t len)
 {
    uint8_t byte_to_rep = *src;
-   uint8_t byte_count = 0;
-   uint8_t *s = src;
+   uint8_t byte_count = 1;
+   uint8_t *s = src + 1;
    uint8_t *d = dst;
 
+   // in:  81 82 83 84 00 00 00 00 81 82 83 84
+   // out: 81 82 83 84 00 04 81 82 83 84
+   //
    while (s < src + len) {
-      if (*s == byte_to_rep && byte_count < 0xff) {
+      if (*s == byte_to_rep && byte_count < 0xff && byte_to_rep == 0) {
          ++byte_count;
+         ++s;
       } else {
-         *d++ = byte_to_rep;
-         *d++ = byte_count;
-         byte_to_rep = *s;
+         if (byte_to_rep > 0) {
+            *d++ = byte_to_rep;
+         } else {
+            *d++ = 0x00;
+            *d++ = byte_count;
+         }
+         byte_to_rep = *s++;
          byte_count = 1;
       }
-      ++s;
    }
-   *d++ = byte_to_rep;
-   *d++ = byte_count;
+   if (byte_to_rep > 0) {
+      *d++ = byte_to_rep;
+   } else {
+      *d++ = 0x00;
+      *d++ = byte_count;
+   }
    return d - dst;
 }
 
@@ -228,7 +243,7 @@ size_t compress(uint16_t *map, int cols, int rows, uint8_t **dst)
    for (y = 0; y < rows; y++) {
       for (x = 0; x < cols; x++) {
          uint16_t val = map[(y * cols + x)];
-         tmp_tiles[y * cols + x] = val & 0xff;//0x7f;
+         tmp_tiles[y * cols + x] = val & 0xff;
       }
    }
    

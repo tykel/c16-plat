@@ -408,25 +408,38 @@ sub_getblk:    shr r0, 4
 
 ;------------------------------------------------------------------------------
 ; Load requested level into memory. Decode using a simple RLE scheme.
+; Zero runs are encoded as '0x00' + run length byte.
+; Non-zero values are encoded literally.
+;
+; This custom encoding scheme exploits the long zero runs that result from
+; randomly-generated backgrounds.
 ;
 ; Data layout (example): 10 00 00 03 ff 0d
 ; Meaning: 
 ; - Section is 0x0010 (16) bytes long.
-; - Repeat byte '0x00' 3 times. Repeat byte '0xff' 13 times.
+; - Repeat byte '0x00' 3 times.
+; - Repeat byte '0xff' once.
+; - Repeat byte '0x0d' once.
 ;------------------------------------------------------------------------------
 sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
                ldi r5, data.level         ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
                ldi r2, 0                  ; Section input byte counter
+               ldi r6, 2                  ; Last input size
 .sub_ldlvlA:   cmp r2, r1                 ; If we read all section bytes, end
-               jz .sub_ldlvlC
-               addi r2, 2                 ; Increment input byte counter
+               jge .sub_ldlvlC
+               add r2, r6                 ; Increment input byte counter
+               ldi r6, 2
                mov r3, r2
                add r3, r0                 ; Current offset into section
                ldm r3, r3                 ; Read value (lo) and reps (hi)
                mov r4, r3
                andi r3, 0xff              ; Byte value to repeat
                shr r4, 8                  ; Number of repetitions (max. 255)
+               cmpi r3, 0
+               jz .sub_ldlvlB
+               ldi r4, 1
+               ldi r6, 1
 .sub_ldlvlB:   stm r3, r5                 ; Write repeated byte
                addi r5, 2                 ; Increment destination pointer
                subi r4, 1                 ; Decrement counter
