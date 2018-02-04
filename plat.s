@@ -427,7 +427,7 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
                ldi r2, 0                  ; Section input byte counter
                ldi r6, 2                  ; Last input size
 .sub_ldlvlA:   cmp r2, r1                 ; If we read all section bytes, end
-               jge .sub_ldlvlC
+               jg .sub_ldlvlC
                add r2, r6                 ; Increment input byte counter
                ldi r6, 2
                mov r3, r2
