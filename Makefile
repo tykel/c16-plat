@@ -29,6 +29,7 @@ gfx/tilemap.bmp: gfx/n-tiles.bmp
 
 lvler: tool/lvler.c
 	gcc $< -o $@ -O2
+	#gcc $< -o $@ -O0 -g
 
 level/%.bin: level/%.src lvler
 	./lvler $< -o $@ --rle | grep importbin > level.s

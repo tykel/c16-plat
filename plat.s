@@ -1,6 +1,19 @@
+;------------------------------------------------------------------------------
+; plat.s -- Platform game engine
+;
+; Function call convention:
+;  Caller saves any of [r0..r9] they wish to retain
+;  Arguments passed in [r0..r9]
+;
+; Persistent registers:
+;  ra: Player X               rd: Scroll X
+;  rb: Player Y               re: <>
+;  rc: Player dY (v-speed)    rf: <>
+;------------------------------------------------------------------------------
+
 TILE_DIM          equ 16
-TILES_X           equ 20
-TILES_LASTX       equ 19
+TILES_X           equ 40
+TILES_LASTX       equ 39
 TILES_Y           equ 15
 TILES_LASTY       equ 14
 
@@ -37,17 +50,17 @@ main_intro:    sng 0xd2, 0x602a
                call sub_fadeout
 
 main_init:     bgc 0                      ; Dark background
+               call sub_initregs          ; Initialize persistent regs
                ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
-               ldi ra, 260                ; Initial player position
-               ldi rb, 192
               
 main_fadein:   ldi r0, sub_drwmap
                call sub_fadein            ; Fade-in from black
 
 main_move:     call sub_input             ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
+               call sub_scroll            ; Adjust scrolling
 
 main_draw:     cls                        ; Clear screen
                call sub_drwmap            ; Draw tiles
@@ -65,6 +78,15 @@ main_updcnt:   vblnk                      ; Wait for vertical blanking
 
 __spin:        vblnk
                jmp __spin
+
+;------------------------------------------------------------------------------
+; Initialize the persistent registers to sane values
+;------------------------------------------------------------------------------
+sub_initregs:  ldi ra, 36                 ; Initial player position
+               ldi rb, 192
+               ldi rc, 0                  ; No vertical motion initially
+               ldi rd, 0                  ; Begin non-scrolled (far left of map)
+               ret
 
 ;------------------------------------------------------------------------------
 ; Lighten the palette gradually whilst displaying something
@@ -166,7 +188,7 @@ sub_drw_t:     mov r2, r1
                mov r5, r3
                andi r5, 0x40
                shr r5, 6
-               andi r3, 0x3f           ; tile_index = (tile & 0x3f) - 1
+               andi r3, 0x3f              ; tile_index = (tile & 0x3f) - 1
                cmpi r3, 0
                jz .sub_drw_tZ
                mov r4, r3
@@ -179,13 +201,26 @@ sub_drw_t:     mov r2, r1
                addi r4, data.gfx_tilemap
                cmpi r5, 0
                jz .sub_drw_tA
-               ldm r5, data.v_anim_c   ; animated tiles get 1 frame / 32 vblnk
+               ldm r5, data.v_anim_c      ; anim'd tiles get 1 frame / 32 vblnk
                andi r5, 0x1f
                cmpi r5, 0x10
                jl .sub_drw_tA
                addi r4, 128
-.sub_drw_tA:   drw r2, r3, r4
+.sub_drw_tA:   sub r2, rd, r6
+               drw r6, r3, r4
 .sub_drw_tZ:   ret
+
+;------------------------------------------------------------------------------
+; Adjust the scrolling register based on player position
+;------------------------------------------------------------------------------
+sub_scroll:    cmpi ra, 160
+               jl .sub_scrollZ
+               cmpi ra, 464
+               jge .sub_scrollZ
+.sub_scrollA:  mov rd, ra
+               subi rd, 160
+.sub_scrollZ:  ret
+
 ;------------------------------------------------------------------------------
 ; Make the player jump -- account for continuous button press
 ;------------------------------------------------------------------------------
@@ -319,7 +354,8 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
                andi r3, 0x8                  ; 8/60 = 0.133... so 7.5 Hz
                shl r3, 4
                add r2, r3
-.sub_drwplyrZ: drw r0, r1, r2
+.sub_drwplyrZ: sub r0, rd
+               drw r0, r1, r2
                ret
 
 ;------------------------------------------------------------------------------
@@ -427,7 +463,7 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
                ldi r2, 0                  ; Section input byte counter
                ldi r6, 2                  ; Last input size
 .sub_ldlvlA:   cmp r2, r1                 ; If we read all section bytes, end
-               jg .sub_ldlvlC
+               jge .sub_ldlvlC
                add r2, r6                 ; Increment input byte counter
                ldi r6, 2
                mov r3, r2
@@ -451,7 +487,7 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
 ;------------------------------------------------------------------------------
 sub_rndbg:     ldi r0, data.level
                ldi r1, data.level
-               addi r1, 600               ; 15 x 20 x 2 bytes
+               addi r1, 1200               ; 15 x 20 x 2 bytes
 .sub_rndbgA:   cmp r0, r1
                jz .sub_rndbgZ
                ldm r2, r0
