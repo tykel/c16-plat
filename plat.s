@@ -7,15 +7,15 @@
 ;
 ; Persistent registers:
 ;  ra: Player X               rd: Scroll X
-;  rb: Player Y               re: <>
+;  rb: Player Y               re: Scroll Y
 ;  rc: Player dY (v-speed)    rf: <>
 ;------------------------------------------------------------------------------
 
 TILE_DIM          equ 16
 TILES_X           equ 40
 TILES_LASTX       equ 39
-TILES_Y           equ 15
-TILES_LASTY       equ 14
+TILES_Y           equ 30
+TILES_LASTY       equ 29
 
 CHAR_OFFS         equ 32
 
@@ -86,6 +86,7 @@ sub_initregs:  ldi ra, 36                 ; Initial player position
                ldi rb, 192
                ldi rc, 0                  ; No vertical motion initially
                ldi rd, 0                  ; Begin non-scrolled (far left of map)
+               ldi re, 0                  ; Begin non-scrolled (top of map)
                ret
 
 ;------------------------------------------------------------------------------
@@ -167,12 +168,20 @@ sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
 ;------------------------------------------------------------------------------
 sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
                flip 0,0                   ; Reset flip state
-               ldi r1, TILES_LASTY
-.sub_drwmapA:  ldi r0, TILES_LASTX
+               ldi r9, 15
+               mov r1, re
+               addi r1, 240
+               shr r1, 4
+.sub_drwmapA:  ldi r8, 20
+               mov r0, rd
+               addi r0, 320
+               shr r0, 4
 .sub_drwmapB:  call sub_drw_t
                subi r0, 1
+               subi r8, 1
                jnn .sub_drwmapB
                subi r1, 1
+               subi r9, 1
                jnn .sub_drwmapA
 .sub_drwmapZ:  ret
 
@@ -207,18 +216,31 @@ sub_drw_t:     mov r2, r1
                jl .sub_drw_tA
                addi r4, 128
 .sub_drw_tA:   sub r2, rd, r6
-               drw r6, r3, r4
+               sub r3, re, r7
+               drw r6, r7, r4
 .sub_drw_tZ:   ret
 
 ;------------------------------------------------------------------------------
 ; Adjust the scrolling register based on player position
 ;------------------------------------------------------------------------------
-sub_scroll:    cmpi ra, 160
-               jl .sub_scrollZ
-               cmpi ra, 464
-               jge .sub_scrollZ
-.sub_scrollA:  mov rd, ra
+sub_scroll:    ldm r0, data.v_level_w
+               shl r0, 4                  ; Tile to pixel coordinates
+               subi r0, 176               ; (320/2)-16
+               ldm r1, data.v_level_h
+               shl r1, 4
+               subi r1, 104               ; (240/2)-16
+               cmpi ra, 160
+               jl .sub_scrollA
+               cmp ra, r0
+               jge .sub_scrollA
+               mov rd, ra
                subi rd, 160
+.sub_scrollA:  cmpi rb, 120
+               jl .sub_scrollZ
+               cmp rb, r1
+               jge .sub_scrollZ
+.sub_scrollC:  mov re, rb
+               subi re, 120
 .sub_scrollZ:  ret
 
 ;------------------------------------------------------------------------------
@@ -355,6 +377,7 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
                shl r3, 4
                add r2, r3
 .sub_drwplyrZ: sub r0, rd
+               sub r1, re
                drw r0, r1, r2
                ret
 
@@ -457,7 +480,12 @@ sub_getblk:    shr r0, 4
 ; - Repeat byte '0xff' once.
 ; - Repeat byte '0x0d' once.
 ;------------------------------------------------------------------------------
-sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
+sub_ldlvl:     ldm r1, r0                 ; Read level width (in tiles)
+               stm r1, data.v_level_w
+               addi r0, 2
+               ldm r1, r0                 ; Read level height (in tiles)
+               stm r1, data.v_level_h
+               addi r0, 2
                ldi r5, data.level         ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
                ldi r2, 0                  ; Section input byte counter
@@ -486,8 +514,11 @@ sub_ldlvl:     ;ret                       ; DEBUG: Return before decompressing
 ; Add some random background tiles to level map
 ;------------------------------------------------------------------------------
 sub_rndbg:     ldi r0, data.level
-               ldi r1, data.level
-               addi r1, 1200               ; 15 x 20 x 2 bytes
+               ldm r1, data.v_level_h
+               ldm r2, data.v_level_w
+               mul r1, r2
+               shl r1, 1
+               addi r1, data.level
 .sub_rndbgA:   cmp r0, r1
                jz .sub_rndbgZ
                ldm r2, r0
@@ -630,6 +661,8 @@ data.palette:  db 0x00,0x00,0x00
                db 0xbc,0xde,0xe4
                db 0xff,0xff,0xff
 data.bgtiles:  dw 5, 6, 28, 29, 30
+data.v_level_w: dw 0
+data.v_level_h: dw 0
 data.v_jump:   dw 0
 data.v_lor:    dw 0
 data.v_hmov:   dw 0

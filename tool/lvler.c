@@ -11,8 +11,8 @@
 char line[256];
 
 struct metadata {
-   int width;
-   int height;
+   int16_t width;
+   int16_t height;
    char name[256];
 } meta;
 
@@ -316,13 +316,15 @@ int main(int argc, char **argv)
 
    file_output = fopen(argv[3], "wb");
    
+   fwrite(&meta, 2, 2, file_output);
+   file_output_len += 2*2;
    if (argc > 4 && !strncmp(argv[4], "--rle", 5)) {
       uint8_t *rle_map;
-      file_output_len = compress(map, meta.width, meta.height, &rle_map);
+      file_output_len += compress(map, meta.width, meta.height, &rle_map);
       fwrite(rle_map, file_output_len, 1, file_output);
       free(rle_map);
    } else {
-      file_output_len = meta.width * meta.height * sizeof(int16_t);
+      file_output_len += meta.width * meta.height * sizeof(int16_t);
       fwrite(map, file_output_len, 1, file_output);
    }
    fclose(file_output);
