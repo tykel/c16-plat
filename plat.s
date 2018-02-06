@@ -44,7 +44,7 @@ main_intro:    sng 0xd2, 0x602a
                snp r0, 100 
                ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
-               ldi r0, 90
+               ldi r0, 60
                call sub_wait
                ldi r0, sub_drwintro
                call sub_fadeout
@@ -84,7 +84,7 @@ __spin:        vblnk
 ; Initialize the persistent registers to sane values
 ;------------------------------------------------------------------------------
 sub_initregs:  ldi ra, 36                 ; Initial player position
-               ldi rb, 192
+               ldi rb, 40
                ldi rc, 0                  ; No vertical motion initially
                ldi rd, 0                  ; Begin non-scrolled (far left of map)
                ldi re, 0                  ; Begin non-scrolled (top of map)
@@ -93,7 +93,8 @@ sub_initregs:  ldi ra, 36                 ; Initial player position
 ;------------------------------------------------------------------------------
 ; Lighten the palette gradually whilst displaying something
 ;------------------------------------------------------------------------------
-sub_fadein:    mov rf, r0
+sub_fadein:    cls
+               mov rf, r0
                ldi r6, 7
 .sub_fadeinA:  ldi r0, data.palette       ; First, copy the palette
                ldi r1, data.paletteA
@@ -142,18 +143,21 @@ sub_fadeout:   mov rf, r0
                or r5, r4
                stm r5, r3
                cmpi r2, 48
-               jz .sub_fadeinC
+               jz .sub_fadeoutC
                addi r2, 1
-               jmp .sub_fadeinB
+               jmp .sub_fadeoutB
 .sub_fadeoutC: pal data.paletteA          ; Load our modified palette
+               pushall
                call rf                    ; Display using provided subfunction
+               popall
                ldi r0, 2                  ; Wait a couple frames to slow effect
                call sub_wait
-               cmpi r6, 0
-               jz .sub_fadeinZ
+               cmpi r6, 7
+               jz .sub_fadeoutZ
                addi r6, 1
-               jmp .sub_fadeinA
+               jmp .sub_fadeoutA
 .sub_fadeoutZ: pal data.palette           ; Reset palette to default
+               cls
                ret
 
 ;------------------------------------------------------------------------------
