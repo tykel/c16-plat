@@ -54,6 +54,7 @@ main_init:     bgc 0                      ; Dark background
                ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
+               call sub_scroll            ; Do initial scrolling adjustment
               
 main_fadein:   ldi r0, sub_drwmap
                call sub_fadein            ; Fade-in from black
@@ -111,7 +112,9 @@ sub_fadein:    mov rf, r0
                addi r2, 1
                jmp .sub_fadeinB
 .sub_fadeinC:  pal data.paletteA          ; Load our modified palette
+               pushall
                call rf                    ; Display using provided subfunction
+               popall
                ldi r0, 2                  ; Wait a couple frames to slow effect
                call sub_wait
                cmpi r6, 0
