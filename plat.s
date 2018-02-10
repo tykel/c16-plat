@@ -72,6 +72,8 @@ main_draw:     cls                        ; Clear screen
                call sub_drwdbg            ; DEBUG: draw debug information
                call sub_drwhud            ; Draw interface elements
 
+main_audio:    call sub_sndstep           ; Process one frame of audio
+
 main_updcnt:   vblnk                      ; Wait for vertical blanking
                flip 0,0                   ; Reset sprite flipping
                ldm r0, data.v_anim_c      ; Increment animation counter
@@ -107,11 +109,11 @@ sub_initregs:  ldi ra, 36                 ; Initial player position
 ;------------------------------------------------------------------------------
 ; Initialize the variables which do not reside in registers 
 ;------------------------------------------------------------------------------
-sub_initdata:  ldi r0, 200
+sub_initdata:  ldi r0, 200                ; Start with 200 second countdown
                stm r0, data.v_time
-               ldi r0, 3
+               ldi r0, 3                  ; 3 lives seems reasonable
                stm r0, data.v_lives
-               ldi r0, 25
+               ldi r0, 25                 ; 25 coins per level also seems ok
                stm r0, data.v_coins
                ret
 
@@ -824,13 +826,29 @@ sub_obj0:      pushall
                stm r0, data.v_obj_cb      ; Store object's callback (sparkle)
                ldi r0, 10
                stm r0, data.v_obj_timer   ; Set a one second timer
-               sng 0x00, 0x8284           ; Short high-pitched beep
-               ldi r0, data.sfx_land
-               snp r0, 50
+               
+               ;sng 0x00, 0x8284           ; Short high-pitched beep
+               ;ldi r0, data.sfx_land
+               ;snp r0, 50
+               
+               ldi r0, data.snd_track
+               ldi r1, 0                  ; 0 delay
+               stm r1, r0
+               addi r0, 2
+               ldm r1, data.sfx_land      ; 1000 Hz note
+               stm r1, r0
+               addi r0, 2
+               ldi r1, 3                  ; 3 Vblnks = 48 ms duration
+               stm r1, r0
+               addi r0, 2
+               ldi r1, 0x0402             ; Medium release, no attack, square
+               stm r1, r0
+               ldi r1, 1
+               stm r1, data.snd_remaining ; 1 note to play
+               
                ldm r0, data.v_coins       ; Decrements "coins remaining"
                subi r0, 1
                stm r0, data.v_coins
-               bgc 15                     ; Flash white background
                ret
 
 ;------------------------------------------------------------------------------
@@ -845,6 +863,63 @@ sub_obj2:      ldi r2, 0                  ; Clear from tilemap
 ; Default (no-op) handler
 ;------------------------------------------------------------------------------
 sub_nop:       ret
+
+;------------------------------------------------------------------------------
+; Audio driver
+;
+; Notes are stored in the following format in the track:
+; - word 0: delay (in Vblnks) since previous note
+; - word 1: note, in Hz
+; - word 2: duration, in ms
+; - word 3: flags:
+;
+; | 15..12 | 11..8   | 7..4   | 3..2   | 1..0  |
+; +--------+---------+--------+--------+-------+
+; | Unused | Release | Attack | Unused | Type  |
+;
+;------------------------------------------------------------------------------
+sub_sndstep:   ldm r0, data.snd_remaining ; Continue only if notes remain
+               cmpi r0, 0
+               jz .sub_sndstepZ
+               ldm r1, data.snd_pos
+               mov r2, r1
+               shl r2, 3
+               addi r2, data.snd_track
+               ldm r3, r2                 ; Delay
+               addi r2, 2
+               mov r4, r2                 ; Note
+               addi r2, 2
+               ldm r5, r2                 ; Duration
+               shl r5, 4
+               stm r5, .sub_sndstepP
+               addi r2, 2
+               ldm r6, r2                 ; Flags
+               ldi r7, 0x000e             ; First instruction word
+               mov r8, r6
+               shr r8, 4
+               andi r8, 0xf
+               shl r8, 8
+               or r7, r8
+               stm r7, .sub_sndstepX
+               ldi r7, 0x8080
+               mov r8, r6
+               shr r8, 8
+               or r7, r8
+               mov r8, r6
+               andi r8, 3
+               shl r8, 8
+               or r7, r8
+               stm r7, .sub_sndstepY 
+.sub_sndstepX: db 0x0e, 0x00              ; SNG instr. to rewrite
+.sub_sndstepY: db 0x00, 0x00
+               db 0x0d, 0x04              ; SNP instr. to rewrite
+.sub_sndstepP: db 0x00, 0x00
+               subi r0, 1
+               stm r0, data.snd_remaining
+               mov r0, r1
+               addi r0, 1
+.sub_sndstepZ: stm r0, data.snd_pos       ; Reset audio position to 0
+               ret
 
 ;------------------------------------------------------------------------------
 ; DATA 
@@ -875,6 +950,26 @@ data.palette:        db 0x00,0x00,0x00
                      db 0xbc,0xde,0xe4
                      db 0xff,0xff,0xff
 data.bgtiles:        dw 5, 6, 28, 29, 30
+
+data.snd_remaining:  dw 0
+data.snd_cb:         dw 0
+data.snd_pos:        dw 0
+data.snd_track:      dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
+                     dw 0,0,0,0
 
 data.obj_data:       dw 0x0040
                      dw 0x0040
