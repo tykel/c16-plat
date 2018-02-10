@@ -61,6 +61,7 @@ main_fadein:   ldi r0, sub_drwmap
 
 main_move:     call sub_input             ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
+               call sub_objcol            ; Handle an object beneath player
                call sub_scroll            ; Adjust scrolling
 
 main_draw:     cls                        ; Clear screen
@@ -701,37 +702,60 @@ reset:         pop r0                     ; The jmp here was from a call
                cls
                jmp _start
 
+sub_objcol:    mov r0, ra
+               mov r1, rb
+               call sub_getblk
+               tsti r0, 0x8000
+               jz .sub_objcolZ
+               andi r0, 0x3f
+               subi r0, 1
+               shl r0, 1
+               addi r0, data.obj_handlers
+               ldm r2, r0
+               mov r0, ra
+               mov r1, rb
+               call r2
+.sub_objcolZ:  ret
+
+sub_obj0:      ldi r2, 0                  ; Coin consumed, clear tilemap entry
+               call sub_setblk
+               sng 0x00, 0x8284           ; Short high-pitched beep
+               ldi r0, data.sfx_land
+               snp r0, 50
+               ret
+
 ;------------------------------------------------------------------------------
 ; DATA 
 ;------------------------------------------------------------------------------
-data.str_copy: db "Copyright (C) T. Kelsall, 2018."
-               db 0
-data.str_bcd3: db 0,0,0,0
-data.palette:  db 0x00,0x00,0x00
-               db 0x00,0x00,0x00
-               db 0x88,0x88,0x88
-               db 0xbf,0x39,0x32
-               db 0xde,0x7a,0xae
-               db 0x4c,0x3d,0x21
-               db 0x90,0x5f,0x25
-               db 0xe4,0x94,0x52
-               db 0xea,0xd9,0x79
-               db 0x53,0x7a,0x3b
-               db 0xab,0xd5,0x4a
-               db 0x25,0x2e,0x38
-               db 0x00,0x46,0x7f
-               db 0x68,0xab,0xcc
-               db 0xbc,0xde,0xe4
-               db 0xff,0xff,0xff
-data.bgtiles:  dw 5, 6, 28, 29, 30
-data.obj_data: dw 0x0040
-data.v_level_w: dw 0
-data.v_level_h: dw 0
-data.v_jump:   dw 0
-data.v_lor:    dw 0
-data.v_hmov:   dw 0
-data.v_anim_c: dw 0
-data.v_hitblk: dw 0
-data.sfx_jump: dw 700
-data.sfx_land: dw 1000
-data.sfx_intro: dw 500
+data.str_copy:       db "Copyright (C) T. Kelsall, 2018."
+                     db 0
+data.str_bcd3:       db 0,0,0,0
+data.palette:        db 0x00,0x00,0x00
+                     db 0x00,0x00,0x00
+                     db 0x88,0x88,0x88
+                     db 0xbf,0x39,0x32
+                     db 0xde,0x7a,0xae
+                     db 0x4c,0x3d,0x21
+                     db 0x90,0x5f,0x25
+                     db 0xe4,0x94,0x52
+                     db 0xea,0xd9,0x79
+                     db 0x53,0x7a,0x3b
+                     db 0xab,0xd5,0x4a
+                     db 0x25,0x2e,0x38
+                     db 0x00,0x46,0x7f
+                     db 0x68,0xab,0xcc
+                     db 0xbc,0xde,0xe4
+                     db 0xff,0xff,0xff
+data.bgtiles:        dw 5, 6, 28, 29, 30
+data.obj_data:       dw 0x0040
+data.obj_handlers:   dw sub_obj0
+data.v_level_w:      dw 0
+data.v_level_h:      dw 0
+data.v_jump:         dw 0
+data.v_lor:          dw 0
+data.v_hmov:         dw 0
+data.v_anim_c:       dw 0
+data.v_hitblk:       dw 0
+data.sfx_jump:       dw 700
+data.sfx_land:       dw 1000
+data.sfx_intro:      dw 500
