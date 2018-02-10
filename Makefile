@@ -26,6 +26,8 @@ gfx/objects.bmp: gfx/n-objects.bmp
 	convert /tmp/obj-*.bmp -append $@
 	rm /tmp/obj-*.bmp
 
+level.s: lvler
+
 lvler: tool/lvler.c
 	gcc $< -o $@ -O2
 
