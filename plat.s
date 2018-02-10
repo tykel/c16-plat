@@ -51,6 +51,7 @@ main_intro:    sng 0xd2, 0x602a
 
 main_init:     bgc 0                      ; Dark background
                call sub_initregs          ; Initialize persistent regs
+               call sub_initdata          ; Initialize memory-resident vars
                ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
@@ -69,6 +70,7 @@ main_draw:     cls                        ; Clear screen
                call sub_drwmap            ; Draw tiles
                call sub_drwplyr           ; Draw player sprite
                call sub_drwdbg            ; DEBUG: draw debug information
+               call sub_drwhud            ; Draw interface elements
 
 main_updcnt:   vblnk                      ; Wait for vertical blanking
                flip 0,0                   ; Reset sprite flipping
@@ -77,7 +79,17 @@ main_updcnt:   vblnk                      ; Wait for vertical blanking
                stm r0, data.v_anim_c
                ldi r0, 0                  ; Reset horizontal movement boolean
                stm r0, data.v_hmov
-               jmp main_move
+               ldm r0, data.v_vblanks     ; Check if 60 vblank ticks elapsed
+               subi r0, 1
+               stm r0, data.v_vblanks
+               cmpi r0, 0
+               jg main_loop
+               ldm r0, data.v_time        ; In which case a second has passed
+               subi r0, 1                 ; So decrement timer
+               stm r0, data.v_time
+               ldi r0, 60
+               stm r0, data.v_vblanks     ; And reset vblank ticks
+main_loop:     jmp main_move
 
 __spin:        vblnk
                jmp __spin
@@ -90,6 +102,17 @@ sub_initregs:  ldi ra, 36                 ; Initial player position
                ldi rc, 0                  ; No vertical motion initially
                ldi rd, 0                  ; Begin non-scrolled (far left of map)
                ldi re, 0                  ; Begin non-scrolled (top of map)
+               ret
+
+;------------------------------------------------------------------------------
+; Initialize the variables which do not reside in registers 
+;------------------------------------------------------------------------------
+sub_initdata:  ldi r0, 200
+               stm r0, data.v_time
+               ldi r0, 3
+               stm r0, data.v_lives
+               ldi r0, 25
+               stm r0, data.v_coins
                ret
 
 ;------------------------------------------------------------------------------
@@ -171,6 +194,45 @@ sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
                call sub_drwstr
                ; Draw the game logo
                ret
+
+;------------------------------------------------------------------------------
+; Draw the interface -- coins, time, lives, etc.
+;------------------------------------------------------------------------------
+sub_drwhud:    
+               ldi r0, data.str_lives     ; Draw "Lives: "
+               ldi r1, 4
+               ldi r2, 2
+               call sub_drwstr
+               ldm r0, data.v_lives
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 52
+               ldi r2, 2
+               call sub_drwstr
+               ldi r0, data.str_coins     ; Draw "Coins Left: "
+               ldi r1, 96
+               ldi r2, 2
+               call sub_drwstr
+               ldm r0, data.v_coins
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 184
+               ldi r2, 2
+               call sub_drwstr
+               ldi r0, data.str_time      ; Draw "Time: "
+               ldi r1, 240
+               ldi r2, 2
+               call sub_drwstr
+               ldm r0, data.v_time
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 280
+               ldi r2, 2
+               call sub_drwstr
+.sub_drwhudZ:  ret
 
 ;------------------------------------------------------------------------------
 ; Draw the tilemap -- iterate over map array
@@ -404,14 +466,14 @@ sub_drwdbg:    mov r0, ra
                call sub_r2bcd3
                ldi r0, data.str_bcd3
                ldi r1, 0
-               ldi r2, 0
+               ldi r2, 228
                call sub_drwstr            ; Draw x value at (0,0)
                mov r0, rb
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
                ldi r1, 48
-               ldi r2, 0
+               ldi r2, 228
                call sub_drwstr            ; Draw y value at (48, 0)
                ret
 
@@ -668,13 +730,19 @@ sub_r2bcd3:    mov r2, r0
                muli r3, 10                ; r3 contains the 10's digit, x10
                mov r4, r3
                divi r4, 10
-               addi r4, 0x10
-               addi r4, CHAR_OFFS
+               cmpi r3, 0
+               jnz .sub_r2bcd3A
+               cmpi r2, 0
+               jz .sub_r2bcd3B
+.sub_r2bcd3A:  addi r4, 0x10
+.sub_r2bcd3B:  addi r4, CHAR_OFFS
                shl r4, 8
                mov r5, r2
                divi r5, 100
+               cmpi r2, 0
+               jz .sub_r2bcd3C
                addi r5, 0x10
-               add r4, r5
+.sub_r2bcd3C:  add r4, r5
                addi r4, CHAR_OFFS         ; Shift and combine 100's & 10's
                stm r4, r1                 ; Store to string's first 2 bytes
                addi r1, 2
@@ -759,6 +827,10 @@ sub_obj0:      pushall
                sng 0x00, 0x8284           ; Short high-pitched beep
                ldi r0, data.sfx_land
                snp r0, 50
+               ldm r0, data.v_coins       ; Decrements "coins remaining"
+               subi r0, 1
+               stm r0, data.v_coins
+               bgc 15                     ; Flash white background
                ret
 
 ;------------------------------------------------------------------------------
@@ -778,6 +850,12 @@ sub_nop:       ret
 ; DATA 
 ;------------------------------------------------------------------------------
 data.str_copy:       db "Copyright (C) T. Kelsall, 2018."
+                     db 0
+data.str_lives:      db "Lives: "
+                     db 0
+data.str_coins:      db "Coins Left: "
+                     db 0
+data.str_time:       db "Time: "
                      db 0
 data.str_bcd3:       db 0,0,0,0
 data.palette:        db 0x00,0x00,0x00
@@ -807,6 +885,11 @@ data.obj_handlers:   dw sub_obj0          ; Coin
 data.v_obj_timer:    dw -1
 data.v_obj_cb:       dw 0
 data.v_obj_cb_args:  dw 0, 0, 0
+
+data.v_lives:        dw 0
+data.v_vblanks:      dw 0
+data.v_time:         dw 0
+data.v_coins:        dw 0
 
 data.v_level_w:      dw 0
 data.v_level_h:      dw 0
