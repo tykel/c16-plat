@@ -201,6 +201,8 @@ sub_drw_t:     mov r2, r1
                shl r2, 1
                addi r2, data.level
                ldm r3, r2
+               mov r6, r3
+               shr r6, 15                 ; is-object? bit
                mov r5, r3
                andi r5, 0x40
                shr r5, 6
@@ -214,8 +216,12 @@ sub_drw_t:     mov r2, r1
                muli r3, TILE_DIM
                subi r4, 1
                shl r4, 7
-               addi r4, data.gfx_tilemap
-               cmpi r5, 0
+               cmpi r6, 0                 ; use either object/tiles gfx offset
+               jz .sub_drw_t0
+               addi r4, data.gfx_objects
+               jmp .sub_drw_t1
+.sub_drw_t0:   addi r4, data.gfx_tilemap
+.sub_drw_t1:   cmpi r5, 0
                jz .sub_drw_tA
                ldm r5, data.v_anim_c      ; anim'd tiles get 1 frame / 32 vblnk
                andi r5, 0x1f
@@ -469,7 +475,18 @@ sub_getblk:    shr r0, 4
                shl r1, 1
                addi r1, data.level
                ldm r0, r1
-               andi r0, 0xff
+               ret
+
+;------------------------------------------------------------------------------
+; Set contents of block in level map
+;------------------------------------------------------------------------------
+sub_setblk:    shr r0, 4
+               shr r1, 4
+               muli r1, TILES_X
+               add r1, r0
+               shl r1, 1
+               addi r1, data.level
+               stm r2, r1
                ret
 
 ;------------------------------------------------------------------------------
@@ -493,12 +510,19 @@ sub_ldlvl:     ldm r1, r0                 ; Read level width (in tiles)
                ldm r1, r0                 ; Read level height (in tiles)
                stm r1, data.v_level_h
                addi r0, 2
-               ldi r5, data.level         ; Destination pointer initial value
+               call sub_t_derle           ; Decompress the tile data
+               call sub_o_parse           ; Read in the level object data
+.sub_ldlvlZ:   ret
+
+;------------------------------------------------------------------------------
+; Decompress the RLE level tiles
+;------------------------------------------------------------------------------
+sub_t_derle:   ldi r5, data.level         ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
                ldi r2, 0                  ; Section input byte counter
                ldi r6, 2                  ; Last input size
-.sub_ldlvlA:   cmp r2, r1                 ; If we read all section bytes, end
-               jge .sub_ldlvlC
+.sub_t_derleA: cmp r2, r1                 ; If we read all section bytes, end
+               jge .sub_t_derleZ
                add r2, r6                 ; Increment input byte counter
                ldi r6, 2
                mov r3, r2
@@ -508,15 +532,47 @@ sub_ldlvl:     ldm r1, r0                 ; Read level width (in tiles)
                andi r3, 0xff              ; Byte value to repeat
                shr r4, 8                  ; Number of repetitions (max. 255)
                cmpi r3, 0
-               jz .sub_ldlvlB
+               jz .sub_t_derleB
                ldi r4, 1
                ldi r6, 1
-.sub_ldlvlB:   stm r3, r5                 ; Write repeated byte
+.sub_t_derleB: stm r3, r5                 ; Write repeated byte
                addi r5, 2                 ; Increment destination pointer
                subi r4, 1                 ; Decrement counter
-               jz .sub_ldlvlA
-               jmp .sub_ldlvlB
-.sub_ldlvlC:   ret 
+               jz .sub_t_derleA
+               jmp .sub_t_derleB
+.sub_t_derleZ: add r0, r1
+               addi r0, 2
+               ret 
+
+;------------------------------------------------------------------------------
+; Read in level objects and position them in tilemap
+;------------------------------------------------------------------------------
+sub_o_parse:   ldm r1, r0                 ; Number of objects
+.sub_o_parseA: cmpi r1, 0
+               jz .sub_o_parseZ
+               addi r0, 2
+               ldm r2, r0                 ; Object index (+1)
+               addi r0, 2
+               ldm r3, r0                 ; Object x
+               addi r0, 2
+               ldm r4, r0                 ; Object y
+               addi r0, 2
+               pushall
+               mov r0, r3
+               shl r0, 4                  ; Object X in pixel-coords
+               mov r1, r4
+               shl r1, 4                  ; Object Y in pixel-coords
+               ldi r3, data.obj_data
+               add r3, r2
+               subi r3, 1
+               ldm r3, r3
+               or r2, r3                  ; Add in object data (solid, anim)
+               ori r2, 0x8000             ; Set highest bit to signify object
+               call sub_setblk
+               popall
+               subi r1, 1
+               jmp .sub_o_parseA
+.sub_o_parseZ: ret
 ;------------------------------------------------------------------------------
 ; Add some random background tiles to level map
 ;------------------------------------------------------------------------------
@@ -668,6 +724,7 @@ data.palette:  db 0x00,0x00,0x00
                db 0xbc,0xde,0xe4
                db 0xff,0xff,0xff
 data.bgtiles:  dw 5, 6, 28, 29, 30
+data.obj_data: dw 0x0040
 data.v_level_w: dw 0
 data.v_level_h: dw 0
 data.v_jump:   dw 0

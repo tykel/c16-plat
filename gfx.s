@@ -21,6 +21,9 @@ importbin gfx/c2b.bin 0 512 data.gfx_c2b
 ; Level tiles
 importbin gfx/tilemap.bin 0 6272 data.gfx_tilemap
 
+; Object sprites
+importbin gfx/objects.bin 0 8192 data.gfx_objects
+
 ; Misc.
 importbin gfx/font.bin 0 3072 data.gfx_font
 
