@@ -62,6 +62,7 @@ main_fadein:   ldi r0, sub_drwmap
 main_move:     call sub_input             ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
                call sub_objcol            ; Handle an object beneath player
+               call sub_objref            ; Handle timer-bound objects
                call sub_scroll            ; Adjust scrolling
 
 main_draw:     cls                        ; Clear screen
@@ -557,7 +558,6 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                ldm r3, r0                 ; Object x
                addi r0, 2
                ldm r4, r0                 ; Object y
-               addi r0, 2
                pushall
                mov r0, r3
                shl r0, 4                  ; Object X in pixel-coords
@@ -702,6 +702,9 @@ reset:         pop r0                     ; The jmp here was from a call
                cls
                jmp _start
 
+;------------------------------------------------------------------------------
+; Check for player-object collision, and call handler if necessary 
+;------------------------------------------------------------------------------
 sub_objcol:    mov r0, ra
                mov r1, rb
                call sub_getblk
@@ -717,12 +720,59 @@ sub_objcol:    mov r0, ra
                call r2
 .sub_objcolZ:  ret
 
-sub_obj0:      ldi r2, 0                  ; Coin consumed, clear tilemap entry
+;------------------------------------------------------------------------------
+; Refresh the objects bound to the object timer
+;------------------------------------------------------------------------------
+sub_objref:    ldm r0, data.v_obj_timer
+               cmpi r0, -1
+               jz .sub_objrefZ
+               subi r0, 1
+               stm r0, data.v_obj_timer
+               cmpi r0, -1
+               jz .sub_objrefA
+               jmp .sub_objrefZ
+.sub_objrefA:  ldi r3, data.v_obj_cb_args
+               ldm r0, r3
+               addi r3, 2
+               ldm r1, r3
+               addi r3, 2
+               ldm r2, r3
+               ldm r3, data.v_obj_cb
+               call r3
+.sub_objrefZ:  ret
+
+;------------------------------------------------------------------------------
+; Coin object handler
+;------------------------------------------------------------------------------
+sub_obj0:      pushall
+               ldi r2, 0x8043             ; Coin consumed, replace with sparkle
                call sub_setblk
+               popall
+               ldi r2, data.v_obj_cb_args
+               stm r0, r2                 ; Store object x
+               addi r2, 2
+               stm r1, r2                 ; Store object y
+               ldi r0, sub_obj2
+               stm r0, data.v_obj_cb      ; Store object's callback (sparkle)
+               ldi r0, 10
+               stm r0, data.v_obj_timer   ; Set a one second timer
                sng 0x00, 0x8284           ; Short high-pitched beep
                ldi r0, data.sfx_land
                snp r0, 50
                ret
+
+;------------------------------------------------------------------------------
+; Coin sparkle object handler
+;------------------------------------------------------------------------------
+sub_obj2:      ldi r2, 0                  ; Clear from tilemap
+               call sub_setblk
+.sub_obj2Z:    ret
+
+
+;------------------------------------------------------------------------------
+; Default (no-op) handler
+;------------------------------------------------------------------------------
+sub_nop:       ret
 
 ;------------------------------------------------------------------------------
 ; DATA 
@@ -747,8 +797,17 @@ data.palette:        db 0x00,0x00,0x00
                      db 0xbc,0xde,0xe4
                      db 0xff,0xff,0xff
 data.bgtiles:        dw 5, 6, 28, 29, 30
+
 data.obj_data:       dw 0x0040
-data.obj_handlers:   dw sub_obj0
+                     dw 0x0040
+data.obj_handlers:   dw sub_obj0          ; Coin
+                     dw sub_nop           ; Coin +1
+                     dw sub_nop           ; Coin sparkle
+                     dw sub_nop           ; Coin sparkle +1
+data.v_obj_timer:    dw -1
+data.v_obj_cb:       dw 0
+data.v_obj_cb_args:  dw 0, 0, 0
+
 data.v_level_w:      dw 0
 data.v_level_h:      dw 0
 data.v_jump:         dw 0
