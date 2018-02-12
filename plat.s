@@ -461,7 +461,7 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
                ret
 
 ;------------------------------------------------------------------------------
-; Display debug info: player x, y. 
+; Display debug info: player x, y. snd_remaining, snd_pos, snd_delay_left. 
 ;------------------------------------------------------------------------------
 sub_drwdbg:    mov r0, ra
                ldi r1, data.str_bcd3
@@ -477,6 +477,27 @@ sub_drwdbg:    mov r0, ra
                ldi r1, 48
                ldi r2, 228
                call sub_drwstr            ; Draw y value at (48, 0)
+               ldm r0, data.snd_remaining
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 96
+               ldi r2, 228
+               call sub_drwstr            ; Draw snd_remaining at (48, 0)
+               ldm r0, data.snd_pos
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 144
+               ldi r2, 228
+               call sub_drwstr            ; Draw snd_pos at (48, 0)
+               ldm r0, data.snd_delay_left
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 192
+               ldi r2, 228
+               call sub_drwstr            ; Draw snd_delay_left at (48, 0)
                ret
 
 ;------------------------------------------------------------------------------
@@ -827,24 +848,16 @@ sub_obj0:      pushall
                ldi r0, 10
                stm r0, data.v_obj_timer   ; Set a one second timer
                
-               ;sng 0x00, 0x8284           ; Short high-pitched beep
-               ;ldi r0, data.sfx_land
-               ;snp r0, 50
-               
-               ldi r0, data.snd_track
-               ldi r1, 0                  ; 0 delay
-               stm r1, r0
-               addi r0, 2
-               ldm r1, data.sfx_land      ; 1000 Hz note
-               stm r1, r0
-               addi r0, 2
-               ldi r1, 3                  ; 3 Vblnks = 48 ms duration
-               stm r1, r0
-               addi r0, 2
-               ldi r1, 0x0402             ; Medium release, no attack, square
-               stm r1, r0
-               ldi r1, 1
-               stm r1, data.snd_remaining ; 1 note to play
+               ldi r0, 0                  ; 0 delay
+               ldm r1, data.sfx_intro     ; 500 Hz note
+               ldi r2, 3                  ; 3 Vblnks = 50 ms duration
+               ldi r3, 0x0402             ; Med. release, low attack, square
+               call sub_sndq
+               ldi r0, 10                 ; 5 Vblnks = 83 ms delay
+               ldm r1, data.sfx_jump      ; 700 Hz note
+               ldi r2, 3                  ; 3 Vblnks = 48 ms duration
+               ldi r3, 0x0402             ; Med. release, low attack, square
+               call sub_sndq
                
                ldm r0, data.v_coins       ; Decrements "coins remaining"
                subi r0, 1
@@ -878,48 +891,93 @@ sub_nop:       ret
 ; | Unused | Release | Attack | Unused | Type  |
 ;
 ;------------------------------------------------------------------------------
-sub_sndstep:   ldm r0, data.snd_remaining ; Continue only if notes remain
+sub_sndstep:   ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
                cmpi r0, 0
-               jz .sub_sndstepZ
-               ldm r1, data.snd_pos
-               mov r2, r1
-               shl r2, 3
-               addi r2, data.snd_track
-               ldm r3, r2                 ; Delay
-               addi r2, 2
-               mov r4, r2                 ; Note
-               addi r2, 2
-               ldm r5, r2                 ; Duration
-               shl r5, 4
-               stm r5, .sub_sndstepP
-               addi r2, 2
-               ldm r6, r2                 ; Flags
-               ldi r7, 0x000e             ; First instruction word
-               mov r8, r6
-               shr r8, 4
-               andi r8, 0xf
-               shl r8, 8
-               or r7, r8
-               stm r7, .sub_sndstepX
-               ldi r7, 0x8080
-               mov r8, r6
-               shr r8, 8
-               or r7, r8
-               mov r8, r6
-               andi r8, 3
-               shl r8, 8
-               or r7, r8
-               stm r7, .sub_sndstepY 
-.sub_sndstepX: db 0x0e, 0x00              ; SNG instr. to rewrite
-.sub_sndstepY: db 0x00, 0x00
-               db 0x0d, 0x04              ; SNP instr. to rewrite
+               jnz .sub_sndstepA
+               call sub_sndreset          ; Reset audio state for good measure
+               jmp .sub_sndstepZ
+.sub_sndstepA: ldm r1, data.snd_pos
+               shl r1, 3
+               addi r1, data.snd_track
+               ldm r0, r1                 ; Read delay remaining
+               cmpi r0, 0                 ; If 0, ready for playback
+               jz .sub_sndstepB
+               subi r0, 1                 ; Decrement delay
+               stm r0, r1                 ; Write back
+               stm r0, data.snd_delay_left ; Write back here too for debug
+               jmp .sub_sndstepZ
+.sub_sndstepB: ldm r0, data.snd_pos
+               shl r0, 3
+               addi r0, data.snd_track
+               addi r0, 2                 ; Skip delay, we already dealt with it
+               ldm r1, r0                 ; Note
+               addi r0, 2
+               ldm r2, r0                 ; Duration
+               stm r2, .sub_sndstepP
+               addi r0, 2
+               ldm r2, r0                 ; Flags
+               mov r3, r2
+               shr r3, 8                  ; SNG Release
+               mov r4, r2
+               andi r4, 3                 ; SNG Type
+               shl r4, 8
+               add r3, r4
+               addi r3, 0xb0b0            ; Add Volume 15 and Sustain 15
+               stm r3, .sub_sndstepH      ; Write to SNG word 2
+               andi r2, 0x00f0            ; SNG Attack
+               shl r2, 8
+               addi r2, 0x0e              ; Add in SNG opcode
+               stm r2, .sub_sndstepG      ; Write to SNG word 1
+.sub_sndstepG: db 0x0e, 0x00              ; SNG instruction
+.sub_sndstepH: db 0x80, 0x80
+.p:            db 0x0d, 0x01              ; SNP instruction
 .sub_sndstepP: db 0x00, 0x00
+               ldm r0, data.snd_pos       ; Point to next sound in track
+               addi r0, 1
+               stm r0, data.snd_pos
+               ldm r0, data.snd_remaining ; Decrement number of sounds left
                subi r0, 1
                stm r0, data.snd_remaining
-               mov r0, r1
-               addi r0, 1
-.sub_sndstepZ: stm r0, data.snd_pos       ; Reset audio position to 0
+.sub_sndstepZ: ret
+
+;------------------------------------------------------------------------------
+; Helper subroutine to reset audio player state.
+;------------------------------------------------------------------------------
+sub_sndreset:  ldi r0, 0
+               stm r0, data.snd_pos
+               stm r0, data.snd_last_pos
+               stm r0, data.snd_remaining
+               stm r0, data.snd_qpos
+               stm r0, data.snd_delay_left
+               stm r0, data.snd_cb
                ret
+
+;------------------------------------------------------------------------------
+; Helper subroutine to queue a sound to the track
+;
+; Args: r0: delay, r1: note, r2: duration, r3: flags
+;------------------------------------------------------------------------------
+sub_sndq:      ldm r4, data.snd_qpos
+               push r4
+               shl r4, 3
+               addi r4, data.snd_track
+               stm r0, r4
+               addi r4, 2
+               stm r1, r4
+               addi r4, 2
+               stm r2, r4
+               addi r4, 2
+               stm r3, r4
+               pop r4
+               cmpi r4, 0
+               jnz .sub_sndqA
+               stm r0, data.snd_delay_left
+.sub_sndqA:    addi r4, 1
+               stm r4, data.snd_qpos
+               ldm r0, data.snd_remaining
+               addi r0, 1
+               stm r0, data.snd_remaining
+.sub_sndqZ:    ret 
 
 ;------------------------------------------------------------------------------
 ; DATA 
@@ -954,6 +1012,9 @@ data.bgtiles:        dw 5, 6, 28, 29, 30
 data.snd_remaining:  dw 0
 data.snd_cb:         dw 0
 data.snd_pos:        dw 0
+data.snd_qpos:       dw 0
+data.snd_delay_left: dw 0
+data.snd_last_pos:   dw 0
 data.snd_track:      dw 0,0,0,0
                      dw 0,0,0,0
                      dw 0,0,0,0
