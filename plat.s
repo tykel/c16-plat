@@ -213,25 +213,25 @@ sub_drwhud:
                ldi r2, 2
                call sub_drwstr
                ldi r0, data.str_coins     ; Draw "Coins Left: "
-               ldi r1, 96
+               ldi r1, 104
                ldi r2, 2
                call sub_drwstr
                ldm r0, data.v_coins
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
-               ldi r1, 184
+               ldi r1, 192
                ldi r2, 2
                call sub_drwstr
                ldi r0, data.str_time      ; Draw "Time: "
-               ldi r1, 240
+               ldi r1, 252
                ldi r2, 2
                call sub_drwstr
                ldm r0, data.v_time
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
-               ldi r1, 280
+               ldi r1, 292
                ldi r2, 2
                call sub_drwstr
 .sub_drwhudZ:  ret
@@ -255,7 +255,7 @@ sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
                jnn .sub_drwmapB
                subi r1, 1
                subi r9, 1
-               jnn .sub_drwmapA
+               jnz .sub_drwmapA
 .sub_drwmapZ:  ret
 
 ;------------------------------------------------------------------------------
@@ -338,9 +338,11 @@ sub_jump:      ldm r0, data.v_jump
                ldi r0, 1
                stm r0, data.v_jump
                ldi rc, PLYR_JP_DY_FP   ; PLYR_JP_DY << FP_SHIFT
-               ldi r0, data.sfx_jump
-               sng 0x00, 0x0300
-               snp r0, 50 
+               ldi r0, 0
+               ldm r1, data.sfx_jump
+               ldi r2, 2
+               ldi r3, 0x0003
+               call sub_sndq
 .sub_jump_Z:   ret
 
 ;------------------------------------------------------------------------------
@@ -367,9 +369,11 @@ sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                jz .sub_mvplyr_a
 .sub_mvplyr0:  cmpi rc, 0                    ; No sound if already grounded
                jz .sub_mvplyr_0
-               sng 0x00, 0x4300              ; Play short white noise sample
-               ldi r0, data.sfx_land
-               snp r0, 50
+               ldi r0, 0
+               ldm r1, data.sfx_land
+               ldi r2, 2
+               ldi r3, 0x0003
+               call sub_sndq
                ldi rc, 0
 .sub_mvplyr_0: ldi r0, 1                     ; Register hit variable
                stm r0, data.v_hitblk
@@ -913,16 +917,17 @@ sub_sndstep:   ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
                ldm r1, r0                 ; Note
                addi r0, 2
                ldm r2, r0                 ; Duration
+               shl r2, 4
                stm r2, .sub_sndstepP
                addi r0, 2
-               ldm r2, r0                 ; Flags
+.flags:        ldm r2, r0                 ; Flags
                mov r3, r2
                shr r3, 8                  ; SNG Release
                mov r4, r2
                andi r4, 3                 ; SNG Type
                shl r4, 8
                add r3, r4
-               addi r3, 0xb0b0            ; Add Volume 15 and Sustain 15
+               addi r3, 0x8000            ; Add Volume 15 and Sustain 15
                stm r3, .sub_sndstepH      ; Write to SNG word 2
                andi r2, 0x00f0            ; SNG Attack
                shl r2, 8
@@ -1054,6 +1059,6 @@ data.v_lor:          dw 0
 data.v_hmov:         dw 0
 data.v_anim_c:       dw 0
 data.v_hitblk:       dw 0
-data.sfx_jump:       dw 700
+data.sfx_jump:       dw 800
 data.sfx_land:       dw 1000
 data.sfx_intro:      dw 500
