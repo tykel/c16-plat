@@ -61,8 +61,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        ;jmp main_init              ; DEBUG: skip the intro
-
+_start:        jmp main_init              ; DEBUG: skip the intro
 intro:         ldi r0, 0
                ldm r1, data.sfx_intro
                ldi r2, 6 
@@ -115,10 +114,62 @@ main_updcnt:   vblnk                      ; Wait for vertical blanking
                jg main_loop
                ldm r0, data.v_time        ; In which case a second has passed
                subi r0, 1                 ; So decrement timer
+               jn main_timeup             ; If time drops down past zero, over!
                stm r0, data.v_time
                ldi r0, 60
                stm r0, data.v_vblanks     ; And reset vblank ticks
 main_loop:     jmp main_move
+
+main_fallout:  pop r0                     ; We got here from sub_scroll...
+               ldm r1, data.v_lives
+               push r1
+               subi r1, 1                 ; But remember the old score!
+               jn main_gameover
+               ldi r0, data.str_fallout
+               ldi r1, 100
+               ldi r2, 112
+               call sub_drwstr 
+               jmp main_flsh_die
+
+main_timeup:   ldm r1, data.v_lives
+               push r1
+               subi r1, 1                 ; But remember the old score!
+               jn main_gameover
+               ldi r0, data.str_timeup
+               ldi r1, 100
+               ldi r2, 112
+               call sub_drwstr
+main_flsh_die: bgc 3                      ; Flicker red background rapidly
+               ldi r0, 6
+               ldi r1, 5
+               call sub_drwflash
+               cls
+               ldi r0, sub_drwmap         ; Then fade to black
+               call sub_fadeout
+               call sub_initregs          ; Reset the player position
+               call sub_initdata          ; Reset the scores
+               pop r1
+               subi r1, 1
+               stm r1, data.v_lives
+               ldi r0, data.level0
+               call sub_ldlvl             ; Decompress level into tilemap memory
+               call sub_rndbg
+               jmp main_fadein            
+
+main_gameover: ldi r0, data.str_gameover
+               ldi r1, 100
+               ldi r2, 112
+               call sub_drwstr
+               ldi r0, 3
+               ldi r1, 15
+               call sub_drwflash
+               bgc 3
+               ldi r0, 90
+               call sub_wait
+               cls
+               ldi r0, sub_drwmap         ; Then fade to black
+               call sub_fadeout
+               jmp main_init              ; Then "reset" the game
 
 __spin:        vblnk
                jmp __spin
@@ -330,17 +381,25 @@ sub_drw_t:     mov r2, r1
 ;------------------------------------------------------------------------------
 sub_scroll:    ldm r0, data.v_level_w
                shl r0, 4                  ; Tile to pixel coordinates
+               cmp ra, r0
+               jge main_fallout
                subi r0, 176               ; (320/2)-16
                ldm r1, data.v_level_h
                shl r1, 4
+               cmp rb, r1
+               jge main_fallout
                subi r1, 104               ; (240/2)-16
+               cmpi ra, 0
+               jl main_fallout
                cmpi ra, 160
                jl .sub_scrollA
                cmp ra, r0
                jge .sub_scrollA
                mov rd, ra
                subi rd, 160
-.sub_scrollA:  cmpi rb, 120
+.sub_scrollA:  cmpi rb, 0
+               jl main_fallout
+               cmpi rb, 120
                jl .sub_scrollZ
                cmp rb, r1
                jge .sub_scrollZ
@@ -530,6 +589,36 @@ sub_drwstr:    spr 0x0804                 ; Font sprite size is 8x8
                addi r1, 8
                jmp sub_drwstr
 .sub_drwstrZ:  ret
+
+;------------------------------------------------------------------------------
+; Flash the screen red a given number of times, with given duration.
+;------------------------------------------------------------------------------
+sub_drwflash:  cmpi r0, 0
+               jz .sub_drwflashZ
+               bgc 3
+               push r0
+               push r1
+               mov r0, r1
+               call sub_wait
+               ldi r0, 5
+               ldi r1, 500
+               ldi r2, 4
+               ldi r3, 0x0a63
+               call sub_sndq
+               bgc 0
+               pop r0
+               push r0
+               call sub_wait
+               ldi r0, 5
+               ldi r1, 600
+               ldi r2, 4
+               ldi r3, 0x0663
+               call sub_sndq
+               pop r1
+               pop r0
+               subi r0, 1
+               jmp sub_drwflash
+.sub_drwflashZ: ret
 
 ;------------------------------------------------------------------------------
 ; Return remaining pixels to next 8-aligned y-coordinate
@@ -1053,6 +1142,12 @@ data.str_lives:      db "Lives: "
 data.str_coins:      db "Coins Left: "
                      db 0
 data.str_time:       db "Time: "
+                     db 0
+data.str_timeup:     db "T I M E   U P !"
+                     db 0
+data.str_fallout:    db "F A L L   O U T !"
+                     db 0
+data.str_gameover:   db "G A M E   O V E R"
                      db 0
 data.str_bcd3:       db 0,0,0,0
 data.palette:        db 0x00,0x00,0x00
