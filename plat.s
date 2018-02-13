@@ -32,16 +32,42 @@ PLYR_DY_POS       equ 2
 PLYR_DY_POS_OFFS  equ 384
 PLYR_DY_POS_ROFFS equ 128
 
+MUSNOTE_C1        equ 32
+MUSNOTE_C3        equ 131
+MUSNOTE_D3        equ 146
+MUSNOTE_E3        equ 164
+MUSNOTE_F3        equ 174
+MUSNOTE_G3        equ 195
+MUSNOTE_A4        equ 220
+MUSNOTE_B4        equ 247
+MUSNOTE_C4        equ 261
+MUSNOTE_D4        equ 293
+MUSNOTE_E4        equ 329
+MUSNOTE_F4        equ 349
+MUSNOTE_G4        equ 391
+MUSNOTE_A5        equ 440
+MUSNOTE_B5        equ 493
+MUSNOTE_C5        equ 523
+MUSNOTE_D5        equ 587
+MUSNOTE_E5        equ 659
+MUSNOTE_F5        equ 698
+MUSNOTE_G5        equ 783
+MUSNOTE_D6        equ 1174
+MUSNOTE_E6        equ 1318
+
 data.level        equ 0xa000
 data.paletteA     equ 0xf000
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp main_init              ; DEBUG: skip the intro
-main_intro:    sng 0xd2, 0x602a
-               ldi r0, data.sfx_intro
-               snp r0, 100 
+_start:        ;jmp main_init              ; DEBUG: skip the intro
+
+intro:         ldi r0, 0
+               ldm r1, data.sfx_intro
+               ldi r2, 6 
+               ldi r3, 0x0ad2
+               call sub_sndq
                ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 60
@@ -52,6 +78,7 @@ main_intro:    sng 0xd2, 0x602a
 main_init:     bgc 0                      ; Dark background
                call sub_initregs          ; Initialize persistent regs
                call sub_initdata          ; Initialize memory-resident vars
+               call sub_sndreset          ; Reset audio driver state
                ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
@@ -200,8 +227,7 @@ sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
 ;------------------------------------------------------------------------------
 ; Draw the interface -- coins, time, lives, etc.
 ;------------------------------------------------------------------------------
-sub_drwhud:    
-               ldi r0, data.str_lives     ; Draw "Lives: "
+sub_drwhud:    ldi r0, data.str_lives     ; Draw "Lives: "
                ldi r1, 4
                ldi r2, 2
                call sub_drwstr
@@ -255,7 +281,7 @@ sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
                jnn .sub_drwmapB
                subi r1, 1
                subi r9, 1
-               jnz .sub_drwmapA
+               jnn .sub_drwmapA
 .sub_drwmapZ:  ret
 
 ;------------------------------------------------------------------------------
@@ -465,7 +491,7 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
                ret
 
 ;------------------------------------------------------------------------------
-; Display debug info: player x, y. snd_remaining, snd_pos, snd_delay_left. 
+; Display debug info: player x, y.
 ;------------------------------------------------------------------------------
 sub_drwdbg:    mov r0, ra
                ldi r1, data.str_bcd3
@@ -481,27 +507,6 @@ sub_drwdbg:    mov r0, ra
                ldi r1, 48
                ldi r2, 228
                call sub_drwstr            ; Draw y value at (48, 0)
-               ldm r0, data.snd_remaining
-               ldi r1, data.str_bcd3
-               call sub_r2bcd3
-               ldi r0, data.str_bcd3
-               ldi r1, 96
-               ldi r2, 228
-               call sub_drwstr            ; Draw snd_remaining at (48, 0)
-               ldm r0, data.snd_pos
-               ldi r1, data.str_bcd3
-               call sub_r2bcd3
-               ldi r0, data.str_bcd3
-               ldi r1, 144
-               ldi r2, 228
-               call sub_drwstr            ; Draw snd_pos at (48, 0)
-               ldm r0, data.snd_delay_left
-               ldi r1, data.str_bcd3
-               call sub_r2bcd3
-               ldi r0, data.str_bcd3
-               ldi r1, 192
-               ldi r2, 228
-               call sub_drwstr            ; Draw snd_delay_left at (48, 0)
                ret
 
 ;------------------------------------------------------------------------------
@@ -783,7 +788,10 @@ sub_r2bcd3:    mov r2, r0
 ;------------------------------------------------------------------------------
 ; Wait given number of frames
 ;------------------------------------------------------------------------------
-sub_wait:      vblnk
+sub_wait:      push r0
+               call sub_sndstep
+               pop r0
+               vblnk
                cmpi r0, 0
                jz .sub_waitZ
                subi r0, 1
@@ -895,22 +903,28 @@ sub_nop:       ret
 ; | Unused | Release | Attack | Unused | Type  |
 ;
 ;------------------------------------------------------------------------------
-sub_sndstep:   ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
-               cmpi r0, 0
+sub_sndstep:   ldm r1, data.snd_pos
+               cmpi r1, 16
                jnz .sub_sndstepA
+               ldm r0, data.snd_cb
+               call r0
+               jmp .sub_sndstepZ
+.sub_sndstepA: ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
+               cmpi r0, 0
+               jnz .sub_sndstepB
                call sub_sndreset          ; Reset audio state for good measure
                jmp .sub_sndstepZ
-.sub_sndstepA: ldm r1, data.snd_pos
+.sub_sndstepB: ldm r1, data.snd_pos
                shl r1, 3
                addi r1, data.snd_track
                ldm r0, r1                 ; Read delay remaining
                cmpi r0, 0                 ; If 0, ready for playback
-               jz .sub_sndstepB
+               jz .sub_sndstepC
                subi r0, 1                 ; Decrement delay
                stm r0, r1                 ; Write back
                stm r0, data.snd_delay_left ; Write back here too for debug
                jmp .sub_sndstepZ
-.sub_sndstepB: ldm r0, data.snd_pos
+.sub_sndstepC: ldm r0, data.snd_pos
                shl r0, 3
                addi r0, data.snd_track
                addi r0, 2                 ; Skip delay, we already dealt with it
@@ -984,6 +998,51 @@ sub_sndq:      ldm r4, data.snd_qpos
                stm r0, data.snd_remaining
 .sub_sndqZ:    ret 
 
+
+;------------------------------------------------------------------------------
+; Subroutine to stream music from a buffer.
+;
+; Queues notes until the buffer is filled, then call into a callback if
+; provided.
+;
+; Args: r0: src buffer, r1: loop, r2: callback?
+;------------------------------------------------------------------------------
+sub_sndstrm:   pushall
+               call sub_sndreset
+               popall
+               stm r1, data.snd_strm_loop
+               stm r2, data.snd_cb
+               ldi r3, data.snd_track     ; Destination pointer
+               ldi r4, 16
+               stm r4, data.snd_remaining
+.sub_sndstrmB: cmpi r4, 0
+               jz .sub_sndstrmZ
+               ldm r1, r0                 ; Read word 1
+               stm r1, r3                 ; Store it
+               addi r0, 2
+               addi r3, 2
+               ldm r1, r0                 ; Word 2...
+               stm r1, r3
+               addi r0, 2
+               addi r3, 2
+               ldm r1, r0                 ; Word 3...
+               stm r1, r3
+               addi r0, 2
+               addi r3, 2
+               ldm r1, r0                 ; Word 4...
+               stm r1, r3
+               addi r0, 2
+               addi r3, 2
+               subi r4, 1
+               jmp .sub_sndstrmB
+.sub_sndstrmZ: ret
+
+sub_cb_music:  ldi r0, data.sfx_music
+               ldi r1, 1
+               ldi r2, sub_cb_music
+               call sub_sndstrm
+               ret
+
 ;------------------------------------------------------------------------------
 ; DATA 
 ;------------------------------------------------------------------------------
@@ -1036,6 +1095,7 @@ data.snd_track:      dw 0,0,0,0
                      dw 0,0,0,0
                      dw 0,0,0,0
                      dw 0,0,0,0
+data.snd_strm_loop:  dw 0
 
 data.obj_data:       dw 0x0040
                      dw 0x0040
@@ -1064,3 +1124,21 @@ data.sfx_land:       dw 1000
 data.sfx_intro:      dw 500
 data.sfx_coin0:      dw 987
 data.sfx_coin1:      dw 1318
+
+; Sample music buffer
+data.sfx_music:      dw  8,MUSNOTE_D3,8,0x0830
+                     dw  8,MUSNOTE_F3,8,0x0830
+                     dw  8,MUSNOTE_D4,20,0x0830
+                     dw 30,MUSNOTE_D3,8,0x0830
+                     dw  8,MUSNOTE_F3,8,0x0830
+                     dw  8,MUSNOTE_D4,20,0x0830
+                     dw 30,MUSNOTE_E4,30,0x0830
+                     dw 46,MUSNOTE_F4,8,0x0830
+                     dw 15,MUSNOTE_E4,5,0x0830
+                     dw 15,MUSNOTE_F4,5,0x0830
+                     dw 30,MUSNOTE_E4,5,0x0830
+                     dw 15,MUSNOTE_C4,5,0x0830
+                     dw 15,MUSNOTE_A4,5,0x0830
+                     dw  8,MUSNOTE_A4,5,0x0830
+                     dw 45,MUSNOTE_D3,5,0x0830
+                     dw  8,MUSNOTE_F3,5,0x0830
