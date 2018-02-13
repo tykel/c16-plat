@@ -340,7 +340,7 @@ sub_jump:      ldm r0, data.v_jump
                ldi rc, PLYR_JP_DY_FP   ; PLYR_JP_DY << FP_SHIFT
                ldi r0, 0
                ldm r1, data.sfx_jump
-               ldi r2, 2
+               ldi r2, 4
                ldi r3, 0x0003
                call sub_sndq
 .sub_jump_Z:   ret
@@ -371,7 +371,7 @@ sub_mvplyr:    mov r0, ra                    ; Check block at (x, y+8+dy)
                jz .sub_mvplyr_0
                ldi r0, 0
                ldm r1, data.sfx_land
-               ldi r2, 2
+               ldi r2, 4
                ldi r3, 0x0003
                call sub_sndq
                ldi rc, 0
@@ -853,14 +853,14 @@ sub_obj0:      pushall
                stm r0, data.v_obj_timer   ; Set a one second timer
                
                ldi r0, 0                  ; 0 delay
-               ldm r1, data.sfx_intro     ; 500 Hz note
+               ldm r1, data.sfx_coin0
                ldi r2, 3                  ; 3 Vblnks = 50 ms duration
                ldi r3, 0x0402             ; Med. release, low attack, square
                call sub_sndq
-               ldi r0, 10                 ; 5 Vblnks = 83 ms delay
-               ldm r1, data.sfx_jump      ; 700 Hz note
+               ldi r0, 4                  ; 5 Vblnks = 83 ms delay
+               ldm r1, data.sfx_coin1
                ldi r2, 3                  ; 3 Vblnks = 48 ms duration
-               ldi r3, 0x0402             ; Med. release, low attack, square
+               ldi r3, 0x0702             ; Med. release, low attack, square
                call sub_sndq
                
                ldm r0, data.v_coins       ; Decrements "coins remaining"
@@ -927,7 +927,7 @@ sub_sndstep:   ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
                andi r4, 3                 ; SNG Type
                shl r4, 8
                add r3, r4
-               addi r3, 0x8000            ; Add Volume 15 and Sustain 15
+               addi r3, 0x8080            ; Add Volume 15 and Sustain 15
                stm r3, .sub_sndstepH      ; Write to SNG word 2
                andi r2, 0x00f0            ; SNG Attack
                shl r2, 8
@@ -1062,3 +1062,5 @@ data.v_hitblk:       dw 0
 data.sfx_jump:       dw 800
 data.sfx_land:       dw 1000
 data.sfx_intro:      dw 500
+data.sfx_coin0:      dw 987
+data.sfx_coin1:      dw 1318
