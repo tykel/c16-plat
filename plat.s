@@ -62,6 +62,9 @@ data.paletteA     equ 0xf000
 ; Main program
 ;------------------------------------------------------------------------------
 _start:        jmp main_init              ; DEBUG: skip the intro
+;--------------------
+; Intro screen logic
+;--------------------
 intro:         ldi r0, 0
                ldm r1, data.sfx_intro
                ldi r2, 6 
@@ -74,6 +77,9 @@ intro:         ldi r0, 0
                ldi r0, sub_drwintro
                call sub_fadeout
 
+;--------------------
+; In-level game logic
+;--------------------
 main_init:     bgc 0                      ; Dark background
                call sub_initregs          ; Initialize persistent regs
                call sub_initdata          ; Initialize memory-resident vars
@@ -120,6 +126,9 @@ main_updcnt:   vblnk                      ; Wait for vertical blanking
                stm r0, data.v_vblanks     ; And reset vblank ticks
 main_loop:     jmp main_move
 
+;--------------------
+; Death logic zone
+;--------------------
 main_fallout:  pop r0                     ; We got here from sub_scroll...
                ldm r1, data.v_lives
                push r1
