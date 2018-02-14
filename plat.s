@@ -61,7 +61,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp main_init              ; DEBUG: skip the intro
+_start:        ;jmp main_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -178,7 +178,7 @@ main_gameover: ldi r0, data.str_gameover
                cls
                ldi r0, sub_drwmap         ; Then fade to black
                call sub_fadeout
-               jmp main_init              ; Then "reset" the game
+               jmp _start                 ; Then "reset" the game
 
 __spin:        vblnk
                jmp __spin
@@ -230,7 +230,7 @@ sub_fadein:    cls
                pushall
                call rf                    ; Display using provided subfunction
                popall
-               ldi r0, 2                  ; Wait a couple frames to slow effect
+               ldi r0, 3                  ; Wait a few frames to slow effect
                call sub_wait
                cmpi r6, 0
                jz .sub_fadeinZ
@@ -264,7 +264,7 @@ sub_fadeout:   mov rf, r0
                pushall
                call rf                    ; Display using provided subfunction
                popall
-               ldi r0, 2                  ; Wait a couple frames to slow effect
+               ldi r0, 3                  ; Wait a few frames to slow effect
                call sub_wait
                cmpi r6, 7
                jz .sub_fadeoutZ
