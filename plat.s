@@ -61,7 +61,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        ;jmp main_init              ; DEBUG: skip the intro
+_start:        jmp main_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -75,6 +75,26 @@ intro:         ldi r0, 0
                ldi r0, 60
                call sub_wait
                ldi r0, sub_drwintro
+               call sub_fadeout
+
+;--------------------
+; Menu logic
+;--------------------
+menu_init:     bgc 0
+               ldi r0, sub_drwmenu
+               call sub_fadein
+menu_loop:     cls
+               call sub_menuinp
+               call sub_drwmenu
+               call sub_sndstep
+               vblnk
+               ldm r0, data.v_menu_vblnk
+               addi r0, 1
+               stm r0, data.v_menu_vblnk
+               ldm r0, data.v_menu_start
+               cmpi r0, 1
+               jnz menu_loop
+.menu_initZ:   ldi r0, sub_drwmenu        ; Fade-out to next screen
                call sub_fadeout
 
 ;--------------------
@@ -92,7 +112,7 @@ main_init:     bgc 0                      ; Dark background
 main_fadein:   ldi r0, sub_drwmap
                call sub_fadein            ; Fade-in from black
 
-main_move:     call sub_input             ; Handle input; maybe move L/R or jump
+main_move:     call sub_maininp           ; Handle input; maybe move L/R or jump
                call sub_mvplyr            ; Move U/D
                call sub_objcol            ; Handle an object beneath player
                call sub_objref            ; Handle timer-bound objects
@@ -200,7 +220,7 @@ sub_initdata:  ldi r0, 200                ; Start with 200 second countdown
                stm r0, data.v_time
                ldi r0, 3                  ; 3 lives seems reasonable
                stm r0, data.v_lives
-               ldi r0, 25                 ; 25 coins per level also seems ok
+               ldi r0, 0
                stm r0, data.v_coins
                ret
 
@@ -321,6 +341,18 @@ sub_drwhud:    ldi r0, data.str_lives     ; Draw "Lives: "
                ldi r2, 2
                call sub_drwstr
 .sub_drwhudZ:  ret
+
+;------------------------------------------------------------------------------
+; Draw the menu
+;------------------------------------------------------------------------------
+sub_drwmenu:   ldi r0, data.str_start
+               ldi r1, 100
+               ldi r2, 156
+               ldm r3, data.v_menu_sel
+               shl r3, 4
+               add r1, r3
+               call sub_drwstr
+               ret
 
 ;------------------------------------------------------------------------------
 ; Draw the tilemap -- iterate over map array
@@ -746,6 +778,7 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                jz .sub_o_parseZ
                addi r0, 2
                ldm r2, r0                 ; Object index (+1)
+               mov r5, r2
                addi r0, 2
                ldm r3, r0                 ; Object x
                addi r0, 2
@@ -764,6 +797,11 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                call sub_setblk
                popall
                subi r1, 1
+               cmpi r5, 1
+               jnz .sub_o_parseA
+               ldm r2, data.v_coins
+               addi r2, 1
+               stm r2, data.v_coins
                jmp .sub_o_parseA
 .sub_o_parseZ: ret
 ;------------------------------------------------------------------------------
@@ -792,26 +830,49 @@ sub_rndbg:     ldi r0, data.level
 .sub_rndbgC:   addi r0, 2
                jmp .sub_rndbgA
 .sub_rndbgZ:   ret
+
 ;------------------------------------------------------------------------------
-; Manage controller input and resulting actions
+; Manage controller input for menu screen
 ;------------------------------------------------------------------------------
-sub_input:     call sub_btn_a
+sub_menuinp:   call sub_btn_select
                cmpi r0, 1
-               jnz .sub_input_A
+               jnz .sub_menuinpA
+               ldm r0, data.v_menu_vblnk
+               cmpi r0, 15
+               jl .sub_menuinpZ
+               ldi r0, 0
+               stm r0, data.v_menu_vblnk
+               ldm r0, data.v_menu_sel
+               addi r0, 1
+               andi r0, 1
+               stm r0, data.v_menu_sel
+               jmp .sub_menuinpZ
+.sub_menuinpA: call sub_btn_start
+               cmpi r0, 1
+               jnz .sub_menuinpZ
+               stm r0, data.v_menu_start
+.sub_menuinpZ: ret
+
+;------------------------------------------------------------------------------
+; Manage controller input for main game
+;------------------------------------------------------------------------------
+sub_maininp:   call sub_btn_a
+               cmpi r0, 1
+               jnz .sub_maininpA
                call sub_jump
-               jmp .sub_input_B
-.sub_input_A:  ldi r0, 0
+               jmp .sub_maininpB
+.sub_maininpA: ldi r0, 0
                stm r0, data.v_jump
-.sub_input_B:  call sub_btn_left
+.sub_maininpB: call sub_btn_left
                cmpi r0, 1
-               jnz .sub_input_C
+               jnz .sub_maininpC
                call sub_mvleft
-               jmp .sub_input_Z
-.sub_input_C:  call sub_btn_right
+               jmp .sub_maininpZ
+.sub_maininpC: call sub_btn_right
                cmpi r0, 1
-               jnz .sub_input_Z
+               jnz .sub_maininpZ
                call sub_mvright
-.sub_input_Z:  call sub_btn_start         ; DEBUG: Start button resets the game
+.sub_maininpZ: call sub_btn_start         ; DEBUG: Start button resets the game
                cmpi r0, 1
                jz reset
                ret
@@ -838,6 +899,14 @@ sub_btn_left:  ldm r0, 0xfff0
 sub_btn_right: ldm r0, 0xfff0
                andi r0, 0x08
                shr r0, 3
+               ret
+
+;------------------------------------------------------------------------------
+; Return whether button Select is pressed
+;------------------------------------------------------------------------------
+sub_btn_select: ldm r0, 0xfff0
+               andi r0, 0x10
+               shr r0, 4
                ret
 
 ;------------------------------------------------------------------------------
@@ -895,6 +964,42 @@ sub_wait:      push r0
                subi r0, 1
                jmp sub_wait
 .sub_waitZ:    ret
+
+sub_1up:       ldm r0, data.v_lives       ; Increase lives count
+               addi r0, 1
+               stm r0, data.v_lives
+               
+               ldi r0, 0                  ; Play 1-up jingle
+               ldi r1, MUSNOTE_F4
+               ldi r2, 3
+               ldi r3, 0x0440
+               call sub_sndq
+
+               ldi r0, 4                  ; Play 1-up jingle
+               ldi r1, MUSNOTE_C4
+               ldi r2, 3 
+               ldi r3, 0x0440
+               call sub_sndq
+               
+               ldi r0, 3                  ; Play 1-up jingle
+               ldi r1, MUSNOTE_F4
+               ldi r2, 4 
+               ldi r3, 0x0440
+               call sub_sndq
+               
+               ldi r0, 3                  ; Play 1-up jingle
+               ldi r1, MUSNOTE_C4
+               ldi r2, 4 
+               ldi r3, 0x0440
+               call sub_sndq
+               
+               ldi r0, 3                  ; Play 1-up jingle
+               ldi r1, MUSNOTE_B5
+               ldi r2, 4 
+               ldi r3, 0x0440
+               call sub_sndq
+               
+               ret
 
 ;------------------------------------------------------------------------------
 ; Reset the program
@@ -972,7 +1077,10 @@ sub_obj0:      pushall
                ldm r0, data.v_coins       ; Decrements "coins remaining"
                subi r0, 1
                stm r0, data.v_coins
-               ret
+               cmpi r0, 0                 ; If all collected, 1-up lives count
+               jg .sub_obj0Z
+               call sub_1up
+.sub_obj0Z:    ret
 
 ;------------------------------------------------------------------------------
 ; Coin sparkle object handler
@@ -1158,6 +1266,8 @@ data.str_fallout:    db "F A L L   O U T !"
                      db 0
 data.str_gameover:   db "G A M E   O V E R"
                      db 0
+data.str_start:      db "Start"
+                     db 0
 data.str_bcd3:       db 0,0,0,0
 data.palette:        db 0x00,0x00,0x00
                      db 0x00,0x00,0x00
@@ -1210,6 +1320,10 @@ data.obj_handlers:   dw sub_obj0          ; Coin
 data.v_obj_timer:    dw -1
 data.v_obj_cb:       dw 0
 data.v_obj_cb_args:  dw 0, 0, 0
+
+data.v_menu_vblnk:   dw 0
+data.v_menu_start:   dw 0
+data.v_menu_sel:     dw 0
 
 data.v_lives:        dw 0
 data.v_vblanks:      dw 0
