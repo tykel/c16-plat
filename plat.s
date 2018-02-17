@@ -429,7 +429,8 @@ sub_scroll:    ldm r0, data.v_level_w
                ldm r1, data.v_level_h
                shl r1, 4
                cmp rb, r1
-               jge main_fallout
+               jge .sub_scrollZZ
+               ;jge main_fallout
                subi r1, 104               ; (240/2)-16
                cmpi ra, 0
                jl main_fallout
@@ -448,6 +449,8 @@ sub_scroll:    ldm r0, data.v_level_w
 .sub_scrollC:  mov re, rb
                subi re, 120
 .sub_scrollZ:  ret
+.sub_scrollZZ: ldi rc, PLYR_JP_DY_FP
+               ret
 
 ;------------------------------------------------------------------------------
 ; Make the player jump -- account for continuous button press
