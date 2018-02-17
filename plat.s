@@ -222,6 +222,7 @@ sub_initdata:  ldi r0, 200                ; Start with 200 second countdown
                stm r0, data.v_lives
                ldi r0, 0
                stm r0, data.v_coins
+               stm r0, data.obj_cb_bf
                ret
 
 ;------------------------------------------------------------------------------
@@ -600,6 +601,7 @@ sub_drwdbg:    mov r0, ra
                ldi r1, 0
                ldi r2, 228
                call sub_drwstr            ; Draw x value at (0,0)
+
                mov r0, rb
                ldi r1, data.str_bcd3
                call sub_r2bcd3
@@ -607,6 +609,14 @@ sub_drwdbg:    mov r0, ra
                ldi r1, 48
                ldi r2, 228
                call sub_drwstr            ; Draw y value at (48, 0)
+
+               ldm r0, data.obj_cb_bf
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 96
+               ldi r2, 228
+               call sub_drwstr
                ret
 
 ;------------------------------------------------------------------------------
@@ -965,6 +975,10 @@ sub_wait:      push r0
                jmp sub_wait
 .sub_waitZ:    ret
 
+
+;------------------------------------------------------------------------------
+; Increase lives count by 1 and play jingle
+;------------------------------------------------------------------------------
 sub_1up:       ldm r0, data.v_lives       ; Increase lives count
                addi r0, 1
                stm r0, data.v_lives
@@ -975,25 +989,25 @@ sub_1up:       ldm r0, data.v_lives       ; Increase lives count
                ldi r3, 0x0440
                call sub_sndq
 
-               ldi r0, 4                  ; Play 1-up jingle
+               ldi r0, 4
                ldi r1, MUSNOTE_C4
                ldi r2, 3 
                ldi r3, 0x0440
                call sub_sndq
                
-               ldi r0, 3                  ; Play 1-up jingle
+               ldi r0, 3
                ldi r1, MUSNOTE_F4
                ldi r2, 4 
                ldi r3, 0x0440
                call sub_sndq
                
-               ldi r0, 3                  ; Play 1-up jingle
+               ldi r0, 3
                ldi r1, MUSNOTE_C4
                ldi r2, 4 
                ldi r3, 0x0440
                call sub_sndq
                
-               ldi r0, 3                  ; Play 1-up jingle
+               ldi r0, 3
                ldi r1, MUSNOTE_B5
                ldi r2, 4 
                ldi r3, 0x0440
@@ -1027,25 +1041,97 @@ sub_objcol:    mov r0, ra
 .sub_objcolZ:  ret
 
 ;------------------------------------------------------------------------------
-; Refresh the objects bound to the object timer
+; Refresh the objects bound to the object timer, using a bitfield for status.
 ;------------------------------------------------------------------------------
-sub_objref:    ldm r0, data.v_obj_timer
-               cmpi r0, -1
-               jz .sub_objrefZ
-               subi r0, 1
-               stm r0, data.v_obj_timer
-               cmpi r0, -1
-               jz .sub_objrefA
-               jmp .sub_objrefZ
-.sub_objrefA:  ldi r3, data.v_obj_cb_args
-               ldm r0, r3
-               addi r3, 2
-               ldm r1, r3
-               addi r3, 2
-               ldm r2, r3
-               ldm r3, data.v_obj_cb
-               call r3
+sub_objref:    ldm r0, data.obj_cb_bf
+               cmpi r0, 0
+               jz .sub_objrefZ                  ; If bf is 0, short-circuit
+               ldi r2, 8
+.sub_objrefA:  subi r2, 1
+               jn .sub_objrefZ
+               ldi r1, 1
+               shl r1, r2
+               tst r0, r1
+               jz .sub_objrefA                  ; Keep looking
+.sub_objrefB:  push r2
+               muli r2, 10
+               addi r2, data.obj_cbs
+               ldm r0, r2                       ; Delay for cb in this slot
+               cmpi r0, 0
+               jnz .sub_objrefC                 ; If delay>0, decrement and loop
+               mov r4, r2                       ; If delay==0, call cb
+               addi r4, 2
+               ldm r5, r4                       ; Callback
+               addi r4, 2
+               ldm r0, r4                       ; Arg 0
+               addi r4, 2
+               push r1
+               ldm r1, r4                       ; Arg 1
+               addi r4, 2
+               ldm r2, r4                       ; Arg 2
+               call r5
+               ldm r0, data.obj_cb_bf           ; Clear cb entry in bitfield
+               pop r1
+               not r1
+               and r0, r1
+               stm r0, data.obj_cb_bf
+               pop r2
+               jmp .sub_objrefA
+.sub_objrefC:  subi r0, 1
+               stm r0, r2
+               pop r2
+               jmp .sub_objrefA
 .sub_objrefZ:  ret
+
+;------------------------------------------------------------------------------
+; Get a free slot in the object callback table
+;------------------------------------------------------------------------------
+sub_objslot:   ldm r0, data.obj_cb_bf
+               ldi r1, 0
+.sub_objslotA: mov r2, r0
+               shr r2, r1
+               andi r2, 1
+               cmpi r2, 0
+               jz .sub_objslotZ
+               addi r1, 1
+               cmpi r1, 8
+               jl .sub_objslotA
+.sub_objslot8: nop
+.sub_objslotZ: mov r0, r1
+               ret
+
+;------------------------------------------------------------------------------
+; Insert a future callback into a free slot in the object callback table
+;
+; Arguments: r0: delay, r1: callback, r2,3,4: callback args
+;------------------------------------------------------------------------------
+sub_objcbq:    push r0
+               push r1
+               push r2
+               call sub_objslot           ; Get a free slot in the table
+               mov r5, r0                 ; Save it
+               pop r2
+               pop r1
+               pop r0
+               ldi r6, 10
+               mul r6, r5                 ; Offset (bytes) into callback table
+               addi r6, data.obj_cbs      ; Callback table entry pointer
+               stm r0, r6                 ; Write delay
+               addi r6, 2
+               stm r1, r6                 ; Write callback handle
+               addi r6, 2
+               stm r2, r6                 ; Write args
+               addi r6, 2
+               stm r3, r6
+               addi r6, 2
+               stm r4, r6
+               addi r6, 2
+               ldi r6, 1                  ; Write slot into bitfield
+               shl r6, r5
+               ldm r0, data.obj_cb_bf
+               or r0, r6
+               stm r0, data.obj_cb_bf
+.sub_objcbqZ:  ret
 
 ;------------------------------------------------------------------------------
 ; Coin object handler
@@ -1054,14 +1140,12 @@ sub_obj0:      pushall
                ldi r2, 0x8043             ; Coin consumed, replace with sparkle
                call sub_setblk
                popall
-               ldi r2, data.v_obj_cb_args
-               stm r0, r2                 ; Store object x
-               addi r2, 2
-               stm r1, r2                 ; Store object y
-               ldi r0, sub_obj2
-               stm r0, data.v_obj_cb      ; Store object's callback (sparkle)
-               ldi r0, 10
-               stm r0, data.v_obj_timer   ; Set a one second timer
+
+               mov r3, r1                 ; Cb arg 1: coin y
+               mov r2, r0                 ; Cb arg 0: coin x
+               ldi r0, 10                 ; Cb timer
+               ldi r1, sub_obj2           ; Cb pointer
+               call sub_objcbq
                
                ldi r0, 0                  ; 0 delay
                ldm r1, data.sfx_coin0
@@ -1140,7 +1224,7 @@ sub_sndstep:   ldm r1, data.snd_pos
                shl r2, 4
                stm r2, .sub_sndstepP
                addi r0, 2
-.flags:        ldm r2, r0                 ; Flags
+               ldm r2, r0                 ; Flags
                mov r3, r2
                shr r3, 8                  ; SNG Release
                mov r4, r2
@@ -1317,9 +1401,16 @@ data.obj_handlers:   dw sub_obj0          ; Coin
                      dw sub_nop           ; Coin +1
                      dw sub_nop           ; Coin sparkle
                      dw sub_nop           ; Coin sparkle +1
-data.v_obj_timer:    dw -1
-data.v_obj_cb:       dw 0
-data.v_obj_cb_args:  dw 0, 0, 0
+
+data.obj_cb_bf:      dw 0
+data.obj_cbs:        dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
 
 data.v_menu_vblnk:   dw 0
 data.v_menu_start:   dw 0
