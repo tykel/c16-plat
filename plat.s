@@ -61,7 +61,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp main_init              ; DEBUG: skip the intro
+_start:        jmp lvlst_init             ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -97,6 +97,26 @@ menu_loop:     cls
 .menu_initZ:   ldi r0, sub_drwmenu        ; Fade-out to next screen
                call sub_fadeout
 
+;--------------------
+; Level start screen
+;--------------------
+lvlst_init:    bgc 0
+               ldi r0, 40
+               stm r0, data.v_lvlst_vblnk
+               ldi r0, sub_drwlvlst
+               call sub_fadein
+lvlst_loop:    cls
+               call sub_drwlvlst
+               vblnk
+               ldm r0, data.v_lvlst_vblnk
+               subi r0, 1
+               stm r0, data.v_lvlst_vblnk
+               cmpi r0, 0
+               jnz lvlst_loop
+               ldi r0, sub_drwlvlst
+               call sub_fadeout
+
+;--------------------
 ;--------------------
 ; In-level game logic
 ;--------------------
@@ -306,6 +326,23 @@ sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
                ret
 
 ;------------------------------------------------------------------------------
+; Draw the level start screen - e.g. "Level 1"
+;------------------------------------------------------------------------------
+sub_drwlvlst:  ldi r0, data.str_level     ; Draw "Level "
+               ldi r1, 100
+               ldi r2, 112
+               call sub_drwstr
+               ldm r0, data.v_level
+               addi r0, 1
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 192
+               ldi r2, 112
+               call sub_drwstr
+               ret
+
+;------------------------------------------------------------------------------
 ; Draw the interface -- coins, time, lives, etc.
 ;------------------------------------------------------------------------------
 sub_drwhud:    ldi r0, data.str_lives     ; Draw "Lives: "
@@ -429,8 +466,8 @@ sub_scroll:    ldm r0, data.v_level_w
                ldm r1, data.v_level_h
                shl r1, 4
                cmp rb, r1
-               jge .sub_scrollZZ
-               ;jge main_fallout
+               ;jge .sub_scrollZZ
+               jge main_fallout
                subi r1, 104               ; (240/2)-16
                cmpi ra, 0
                jl main_fallout
@@ -455,12 +492,12 @@ sub_scroll:    ldm r0, data.v_level_w
 ;------------------------------------------------------------------------------
 ; Make the player jump -- account for continuous button press
 ;------------------------------------------------------------------------------
-sub_jump:      ldm r0, data.v_jump
+sub_jump:      ldm r0, data.v_jump     ; Do not jump again if already jumping
                cmpi r0, 1
                jz .sub_jump_Z
-               cmpi rc, 0
+               cmpi rc, 0              ; Do not jump if falling
                jnz .sub_jump_Z
-               ldm r0, data.v_hitblk
+               ldm r0, data.v_hitblk   ; Do not jump if we have not hit a floor
 .break:        cmpi r0, 1 
                jnz .sub_jump_Z
                ldi r0, 0
@@ -831,7 +868,7 @@ sub_rndbg:     ldi r0, data.level
                ldm r2, r0
                cmpi r2, 0                 ; Only look at empty tiles
                jnz .sub_rndbgC
-               rnd r3, 5
+               rnd r3, 3
                cmpi r3, 0                 ; Maybe overwrite this existing tile
                jnz .sub_rndbgC
 .sub_rndbgB:   rnd r3, 4                  ; Choose random tile from bgtiles
@@ -1341,6 +1378,8 @@ sub_cb_music:  ldi r0, data.sfx_music
 ;------------------------------------------------------------------------------
 data.str_copy:       db "Copyright (C) T. Kelsall, 2018."
                      db 0
+data.str_level:      db "L E V E L  "
+                     db 0
 data.str_lives:      db "Lives: "
                      db 0
 data.str_coins:      db "Coins Left: "
@@ -1418,6 +1457,9 @@ data.obj_cbs:        dw 0, 0, 0, 0, 0
 data.v_menu_vblnk:   dw 0
 data.v_menu_start:   dw 0
 data.v_menu_sel:     dw 0
+
+data.v_level:        dw 0
+data.v_lvlst_vblnk:  dw 0
 
 data.v_lives:        dw 0
 data.v_vblanks:      dw 0
