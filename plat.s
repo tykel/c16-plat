@@ -829,7 +829,10 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                addi r0, 2
                ldm r2, r0                 ; Object index (+1)
                mov r5, r2
-               addi r0, 2
+               cmpi r5, 5
+               jnz .sub_o_parseB
+               nop
+.sub_o_parseB: addi r0, 2
                ldm r3, r0                 ; Object x
                addi r0, 2
                ldm r4, r0                 ; Object y
@@ -838,13 +841,14 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                shl r0, 4                  ; Object X in pixel-coords
                mov r1, r4
                shl r1, 4                  ; Object Y in pixel-coords
-               ldi r3, data.obj_data
-               add r3, r2
+               mov r3, r2
                subi r3, 1
+               shl r3, 1
+               addi r3, data.obj_data
                ldm r3, r3
                or r2, r3                  ; Add in object data (solid, anim)
                ori r2, 0x8000             ; Set highest bit to signify object
-               call sub_setblk
+.a:            call sub_setblk
                popall
                subi r1, 1
                cmpi r5, 1
@@ -1213,6 +1217,9 @@ sub_obj2:      ldi r2, 0                  ; Clear from tilemap
                call sub_setblk
 .sub_obj2Z:    ret
 
+sub_obj4:      pop r0
+               jmp main_init
+
 
 ;------------------------------------------------------------------------------
 ; Default (no-op) handler
@@ -1438,11 +1445,15 @@ data.snd_track:      dw 0,0,0,0
 data.snd_strm_loop:  dw 0
 
 data.obj_data:       dw 0x0040
-                     dw 0x0040
+                     dw 0
+                     dw 0x0042
+                     dw 0
+                     dw 0x0004
 data.obj_handlers:   dw sub_obj0          ; Coin
                      dw sub_nop           ; Coin +1
                      dw sub_nop           ; Coin sparkle
                      dw sub_nop           ; Coin sparkle +1
+                     dw sub_obj4          ; Exit doorway
 
 data.obj_cb_bf:      dw 0
 data.obj_cbs:        dw 0, 0, 0, 0, 0

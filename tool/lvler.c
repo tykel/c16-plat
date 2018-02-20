@@ -146,11 +146,12 @@ int readln_map(FILE *f, char *line)
    while (tile != NULL) {
       /* If prefixed by '$', it's an object. */
       if (!strncmp(tile, "$", 1)) {
-         uint8_t obj_index = (atoi(tile) & 0x7f) + 1;
+         uint8_t obj_index = (atoi(tile + 1) & 0x7f) + 1;
          obj_list[obj_it].set = 1;
          obj_list[obj_it].object = obj_index;
          obj_list[obj_it].x = mapx;
          obj_list[obj_it].y = mapy;
+         printf("map: found obj %d @ (%d,%d)\n", obj_index, mapx, mapy);
          ++obj_it;
       } else {
          uint8_t tile_index = atoi(tile) & 0x7f;
