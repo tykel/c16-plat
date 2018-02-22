@@ -126,6 +126,7 @@ int readln_map(FILE *f, char *line)
    char *tile;
    int mapx = 0;
    int len = 256;
+
    fgets(line, 256, f);
    /* Handle new sections and empty lines. */
    len = MIN(strnlen(line, 5), 256);
@@ -134,11 +135,13 @@ int readln_map(FILE *f, char *line)
       return 0;
    }
    if (line[0] == '\n') {
-      mapy += 1;
       return 0;
    }
    if (feof(f)) {
       return 0;
+   }
+   if (mapy >= meta.height) {
+      fprintf(stderr, "warning: map contains more rows than declared! (y: %d, height: %d)\n", mapy, meta.height);
    }
 
    /* Parse map entries. */

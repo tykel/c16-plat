@@ -12,10 +12,6 @@
 ;------------------------------------------------------------------------------
 
 TILE_DIM          equ 16
-TILES_X           equ 40
-TILES_LASTX       equ 39
-TILES_Y           equ 30
-TILES_LASTY       equ 29
 
 CHAR_OFFS         equ 32
 
@@ -124,7 +120,6 @@ main_init:     bgc 0                      ; Dark background
                call sub_initregs          ; Initialize persistent regs
                call sub_initdata          ; Initialize memory-resident vars
                call sub_sndreset          ; Reset audio driver state
-               ldi r0, data.level0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
                call sub_scroll            ; Do initial scrolling adjustment
@@ -200,7 +195,10 @@ main_flsh_die: bgc 3                      ; Flicker red background rapidly
                pop r1
                subi r1, 1
                stm r1, data.v_lives
-               ldi r0, data.level0
+               ldm r0, data.v_level
+               shl r0, 1
+               addi r0, data.v_level_offs
+               ldm r0, r0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
                jmp main_fadein            
@@ -417,8 +415,8 @@ sub_drwmap:    spr 0x1008                 ; Tile sprite size is 16x16
 ;------------------------------------------------------------------------------
 ; Draw a tile -- parse metadata bits and display
 ;------------------------------------------------------------------------------
-sub_drw_t:     mov r2, r1
-               muli r2, TILES_X
+sub_drw_t:     ldm r2, data.v_level_w
+               mul r2, r1
                add r2, r0
                shl r2, 1
                addi r2, data.level
@@ -746,7 +744,8 @@ sub_dx2rblk:   mov r1, ra
 ;------------------------------------------------------------------------------
 sub_getblk:    shr r0, 4
                shr r1, 4
-               muli r1, TILES_X
+               ldm r2, data.v_level_w
+               mul r1, r2
                add r1, r0
                shl r1, 1
                addi r1, data.level
@@ -758,7 +757,10 @@ sub_getblk:    shr r0, 4
 ;------------------------------------------------------------------------------
 sub_setblk:    shr r0, 4
                shr r1, 4
-               muli r1, TILES_X
+               push r2
+               ldm r2, data.v_level_w
+               mul r1, r2
+               pop r2
                add r1, r0
                shl r1, 1
                addi r1, data.level
@@ -766,7 +768,7 @@ sub_setblk:    shr r0, 4
                ret
 
 ;------------------------------------------------------------------------------
-; Load requested level into memory. Decode using a simple RLE scheme.
+; Load current level into memory. Decode using a simple RLE scheme.
 ; Zero runs are encoded as '0x00' + run length byte.
 ; Non-zero values are encoded literally.
 ;
@@ -780,13 +782,17 @@ sub_setblk:    shr r0, 4
 ; - Repeat byte '0xff' once.
 ; - Repeat byte '0x0d' once.
 ;------------------------------------------------------------------------------
-sub_ldlvl:     ldm r1, r0                 ; Read level width (in tiles)
+sub_ldlvl:     ldm r0, data.v_level
+               shl r0, 1
+               addi r0, data.v_level_offs
+               ldm r0, r0                 ; Read address of current level
+               ldm r1, r0                 ; Read level width (in tiles)
                stm r1, data.v_level_w
                addi r0, 2
                ldm r1, r0                 ; Read level height (in tiles)
                stm r1, data.v_level_h
                addi r0, 2
-               call sub_t_derle           ; Decompress the tile data
+.brk:          call sub_t_derle           ; Decompress the tile data
                call sub_o_parse           ; Read in the level object data
 .sub_ldlvlZ:   ret
 
@@ -1218,7 +1224,12 @@ sub_obj2:      ldi r2, 0                  ; Clear from tilemap
 .sub_obj2Z:    ret
 
 sub_obj4:      pop r0
-               jmp main_init
+               ldm r0, data.v_level
+               addi r0, 1
+               stm r0, data.v_level
+               ldi r0, sub_drwmap
+               call sub_fadeout
+               jmp lvlst_init
 
 
 ;------------------------------------------------------------------------------
@@ -1471,6 +1482,8 @@ data.v_menu_sel:     dw 0
 
 data.v_level:        dw 0
 data.v_lvlst_vblnk:  dw 0
+
+data.v_level_offs:   dw data.level0, data.level1
 
 data.v_lives:        dw 0
 data.v_vblanks:      dw 0

@@ -7,6 +7,7 @@ LEVELS=$(patsubst level/%.src,level/%.bin,$(LEVELS_SRC))
 all: plat.c16 lvler
 
 plat.c16: $(SRC) $(GFX) $(LEVELS)
+	sort level.s -o level.s
 	as16 $(SRC) -o $@ -m
 	ctags -R .
 
@@ -35,4 +36,5 @@ lvler-gui: tool/lvler-gui.c
 	gcc $< -o $@ -O2 $(shell sdl-config --cflags) $(shell sdl-config --libs)
 
 level/%.bin: level/%.src lvler
-	./lvler $< -o $@ --rle | grep importbin > level.s
+	sed -i '\#$@#d' level.s
+	./lvler $< -o $@ --rle | grep importbin >> level.s
