@@ -101,8 +101,10 @@ lvlst_init:    bgc 0
                stm r0, data.v_lvlst_vblnk
                ldi r0, sub_drwlvlst
                call sub_fadein
+               call sub_lvlstmus
 lvlst_loop:    cls
                call sub_drwlvlst
+               call sub_sndstep
                vblnk
                ldm r0, data.v_lvlst_vblnk
                subi r0, 1
@@ -459,16 +461,16 @@ sub_drw_t:     ldm r2, data.v_level_w
 sub_scroll:    ldm r0, data.v_level_w
                shl r0, 4                  ; Tile to pixel coordinates
                cmp ra, r0
-               jge main_fallout
+               jge .sub_scrollF
                subi r0, 176               ; (320/2)-16
                ldm r1, data.v_level_h
                shl r1, 4
                cmp rb, r1
                ;jge .sub_scrollZZ
-               jge main_fallout
+               jge .sub_scrollF
                subi r1, 104               ; (240/2)-16
                cmpi ra, 0
-               jl main_fallout
+               jl .sub_scrollF 
                cmpi ra, 160
                jl .sub_scrollA
                cmp ra, r0
@@ -476,7 +478,7 @@ sub_scroll:    ldm r0, data.v_level_w
                mov rd, ra
                subi rd, 160
 .sub_scrollA:  cmpi rb, 0
-               jl main_fallout
+               jl .sub_scrollF
                cmpi rb, 120
                jl .sub_scrollZ
                cmp rb, r1
@@ -484,8 +486,42 @@ sub_scroll:    ldm r0, data.v_level_w
 .sub_scrollC:  mov re, rb
                subi re, 120
 .sub_scrollZ:  ret
+.sub_scrollF:  ldi r0, 6
+               ldi r1, main_fallout
+               call sub_objcbq
+               ret
 .sub_scrollZZ: ldi rc, PLYR_JP_DY_FP
                ret
+
+;------------------------------------------------------------------------------
+; Play the level-start screen jingle
+;------------------------------------------------------------------------------
+sub_lvlstmus:  ldi r0, 0
+               ldi r1, MUSNOTE_C4
+               ldi r2, 4
+               ldi r3, 0x0403
+               call sub_sndq
+               ldi r0, 6
+               ldi r1, MUSNOTE_C4
+               ldi r2, 4
+               ldi r3, 0x0403
+               call sub_sndq
+               ldi r0, 6
+               ldi r1, MUSNOTE_C4
+               ldi r2, 4
+               ldi r3, 0x0403
+               call sub_sndq
+               ldi r0, 6
+               ldi r1, MUSNOTE_C4
+               ldi r2, 4
+               ldi r3, 0x0403
+               call sub_sndq
+               ldi r0, 15
+               ldi r1, MUSNOTE_G4
+               ldi r2, 15
+               ldi r3, 0x0403
+               call sub_sndq
+.sub_lvlstmusZ: ret 
 
 ;------------------------------------------------------------------------------
 ; Make the player jump -- account for continuous button press
@@ -1223,13 +1259,21 @@ sub_obj2:      ldi r2, 0                  ; Clear from tilemap
                call sub_setblk
 .sub_obj2Z:    ret
 
-sub_obj4:      pop r0
-               ldm r0, data.v_level
+;------------------------------------------------------------------------------
+; Exit doorway object handlers 
+;------------------------------------------------------------------------------
+sub_obj4:      ldi r0, 5                  ; Schedule callback 5 frames from now
+               ldi r1, sub_obj4d
+               call sub_objcbq
+               ret
+
+sub_obj4d:     pop r0                     ; Goto next level
+               ldm r0, data.v_level       ; Increment level counter
                addi r0, 1
                stm r0, data.v_level
-               ldi r0, sub_drwmap
+               ldi r0, sub_drwmap         ; Fadeout the screen
                call sub_fadeout
-               jmp lvlst_init
+               jmp lvlst_init             ; And go to level start screen.
 
 
 ;------------------------------------------------------------------------------
