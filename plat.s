@@ -51,13 +51,15 @@ MUSNOTE_G5        equ 783
 MUSNOTE_D6        equ 1174
 MUSNOTE_E6        equ 1318
 
+importbin sfx/mus_menu.bin 0 5368 data.mus_menu
+
 data.level        equ 0xa000
 data.paletteA     equ 0xf000
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp lvlst_init             ; DEBUG: skip the intro
+_start:        jmp menu_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -77,13 +79,18 @@ intro:         ldi r0, 0
 ; Menu logic
 ;--------------------
 menu_init:     bgc 0
+               ldi r0, data.mus_menu
+               ldi r1, 1
+               ldi r2, sub_cb_music
+               call sub_sndstrm
                ldi r0, sub_drwmenu
                call sub_fadein
 menu_loop:     cls
                call sub_menuinp
                call sub_drwmenu
+               call sub_drwdbg
                call sub_sndstep
-               vblnk
+.zzz:          vblnk
                ldm r0, data.v_menu_vblnk
                addi r0, 1
                stm r0, data.v_menu_vblnk
@@ -192,15 +199,15 @@ main_flsh_die: bgc 3                      ; Flicker red background rapidly
                cls
                ldi r0, sub_drwmap         ; Then fade to black
                call sub_fadeout
+.a:            ldm r0, data.v_level
+               push r0
                call sub_initregs          ; Reset the player position
                call sub_initdata          ; Reset the scores
+               pop r0
+               stm r0, data.v_level
                pop r1
                subi r1, 1
                stm r1, data.v_lives
-               ldm r0, data.v_level
-               shl r0, 1
-               addi r0, data.v_level_offs
-               ldm r0, r0
                call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
                jmp main_fadein            
@@ -684,7 +691,7 @@ sub_drwdbg:    mov r0, ra
                ldi r2, 228
                call sub_drwstr            ; Draw y value at (48, 0)
 
-               ldm r0, data.obj_cb_bf
+               ldm r0, data.snd_pos
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
@@ -890,7 +897,7 @@ sub_o_parse:   ldm r1, r0                 ; Number of objects
                ldm r3, r3
                or r2, r3                  ; Add in object data (solid, anim)
                ori r2, 0x8000             ; Set highest bit to signify object
-.a:            call sub_setblk
+               call sub_setblk
                popall
                subi r1, 1
                cmpi r5, 1
@@ -1299,6 +1306,8 @@ sub_sndstep:   ldm r1, data.snd_pos
                cmpi r1, 16
                jnz .sub_sndstepA
                ldm r0, data.snd_cb
+               cmpi r0, 0
+               jz .sub_sndstepZ
                call r0
                jmp .sub_sndstepZ
 .sub_sndstepA: ldm r0, data.snd_remaining ; No sounds remaining -> do nothing
@@ -1402,6 +1411,7 @@ sub_sndq:      ldm r4, data.snd_qpos
 sub_sndstrm:   pushall
                call sub_sndreset
                popall
+               stm r0, data.snd_strm_src
                stm r1, data.snd_strm_loop
                stm r2, data.snd_cb
                ldi r3, data.snd_track     ; Destination pointer
@@ -1429,7 +1439,8 @@ sub_sndstrm:   pushall
                jmp .sub_sndstrmB
 .sub_sndstrmZ: ret
 
-sub_cb_music:  ldi r0, data.sfx_music
+sub_cb_music:  ldm r0, data.snd_strm_src
+               addi r0, 128
                ldi r1, 1
                ldi r2, sub_cb_music
                call sub_sndstrm
@@ -1498,6 +1509,7 @@ data.snd_track:      dw 0,0,0,0
                      dw 0,0,0,0
                      dw 0,0,0,0
 data.snd_strm_loop:  dw 0
+data.snd_strm_src:   dw 0
 
 data.obj_data:       dw 0x0040
                      dw 0
