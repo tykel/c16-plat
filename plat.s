@@ -21,6 +21,10 @@ PLYR_DY_MAX       equ 5
 PLYR_DY_MAX_FP    equ 20
 FP_SHIFT          equ 2
 
+LVL_INTRO         equ 0
+LVL_MENU          equ 1
+LVL_LEVEL0        equ 2
+
 PLYR_DY_ZERO      equ 0
 PLYR_DY_NEG       equ 1
 PLYR_DY_NEG_OFFS  equ 256
@@ -51,15 +55,13 @@ MUSNOTE_G5        equ 783
 MUSNOTE_D6        equ 1174
 MUSNOTE_E6        equ 1318
 
-importbin sfx/mus_menu.bin 0 5368 data.mus_menu
-
 data.level        equ 0xa000
 data.paletteA     equ 0xf000
 
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp menu_init              ; DEBUG: skip the intro
+_start:        ;jmp menu_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -68,6 +70,9 @@ intro:         ldi r0, 0
                ldi r2, 6 
                ldi r3, 0x0ad2
                call sub_sndq
+               ldi r0, LVL_INTRO
+               stm r0, data.v_level
+               call sub_ldlvl             ; Decompress level into tilemap memory
                ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 60
@@ -83,6 +88,9 @@ menu_init:     bgc 0
                ldi r1, 1
                ldi r2, sub_cb_music
                call sub_sndstrm
+               ldi r0, LVL_MENU
+               stm r0, data.v_level
+               call sub_ldlvl             ; Decompress level into tilemap memory
                ldi r0, sub_drwmenu
                call sub_fadein
 menu_loop:     cls
@@ -90,20 +98,26 @@ menu_loop:     cls
                call sub_drwmenu
                call sub_drwdbg
                call sub_sndstep
-.zzz:          vblnk
+               vblnk
                ldm r0, data.v_menu_vblnk
                addi r0, 1
                stm r0, data.v_menu_vblnk
                ldm r0, data.v_menu_start
                cmpi r0, 1
                jnz menu_loop
-.menu_initZ:   ldi r0, sub_drwmenu        ; Fade-out to next screen
+.menu_initZ:   call sub_sndreset          ; Reset audio driver state
+               ldi r0, sub_drwmenu        ; Fade-out to next screen
                call sub_fadeout
+               ldi r0, LVL_LEVEL0         ; Set level counter here, as we go to
+               stm r0, data.v_level       ; lvlst_init for each level
+               ldi r0, 3                  ; Set lives counter here, as we got to
+               stm r0, data.v_lives       ; main_init for each level
 
 ;--------------------
 ; Level start screen
 ;--------------------
-lvlst_init:    bgc 0
+lvlst_init:    snd0
+               bgc 0
                ldi r0, 40
                stm r0, data.v_lvlst_vblnk
                ldi r0, sub_drwlvlst
@@ -196,19 +210,15 @@ main_flsh_die: bgc 3                      ; Flicker red background rapidly
                ldi r0, 6
                ldi r1, 5
                call sub_drwflash
-               cls
+.a:            cls
                ldi r0, sub_drwmap         ; Then fade to black
                call sub_fadeout
-.a:            ldm r0, data.v_level
-               push r0
-               call sub_initregs          ; Reset the player position
+.b:            call sub_initregs          ; Reset the player position
                call sub_initdata          ; Reset the scores
-               pop r0
-               stm r0, data.v_level
                pop r1
                subi r1, 1
                stm r1, data.v_lives
-               call sub_ldlvl             ; Decompress level into tilemap memory
+.c:            call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
                jmp main_fadein            
 
@@ -245,11 +255,10 @@ sub_initregs:  ldi ra, 36                 ; Initial player position
 ;------------------------------------------------------------------------------
 sub_initdata:  ldi r0, 200                ; Start with 200 second countdown
                stm r0, data.v_time
-               ldi r0, 3                  ; 3 lives seems reasonable
-               stm r0, data.v_lives
                ldi r0, 0
                stm r0, data.v_coins
                stm r0, data.obj_cb_bf
+               stm r0, data.v_fallingout  ; We aren't falling out when we start
                ret
 
 ;------------------------------------------------------------------------------
@@ -330,6 +339,7 @@ sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
                ldi r2, 224
                call sub_drwstr
                ; Draw the game logo
+               call sub_drwmap
                ret
 
 ;------------------------------------------------------------------------------
@@ -340,7 +350,7 @@ sub_drwlvlst:  ldi r0, data.str_level     ; Draw "Level "
                ldi r2, 112
                call sub_drwstr
                ldm r0, data.v_level
-               addi r0, 1
+               subi r0, 1
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
@@ -397,6 +407,7 @@ sub_drwmenu:   ldi r0, data.str_start
                shl r3, 4
                add r1, r3
                call sub_drwstr
+               call sub_drwmap
                ret
 
 ;------------------------------------------------------------------------------
@@ -493,10 +504,15 @@ sub_scroll:    ldm r0, data.v_level_w
 .sub_scrollC:  mov re, rb
                subi re, 120
 .sub_scrollZ:  ret
-.sub_scrollF:  ldi r0, 6
+.sub_scrollF:  ldm r0, data.v_fallingout
+               cmpi r0, 1
+               jz .sub_scrollFZ
+               ldi r0, 6
                ldi r1, main_fallout
                call sub_objcbq
-               ret
+               ldi r0, 1
+               stm r0, data.v_fallingout
+.sub_scrollFZ: ret
 .sub_scrollZZ: ldi rc, PLYR_JP_DY_FP
                ret
 
@@ -696,6 +712,14 @@ sub_drwdbg:    mov r0, ra
                call sub_r2bcd3
                ldi r0, data.str_bcd3
                ldi r1, 96
+               ldi r2, 228
+               call sub_drwstr
+
+               ldm r0, data.v_level
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 144
                ldi r2, 228
                call sub_drwstr
                ret
@@ -1187,9 +1211,9 @@ sub_objslot:   ldm r0, data.obj_cb_bf
                cmpi r2, 0
                jz .sub_objslotZ
                addi r1, 1
-               cmpi r1, 8
+               cmpi r1, 16
                jl .sub_objslotA
-.sub_objslot8: nop
+.sub_objslot8: ldi r1, -1
 .sub_objslotZ: mov r0, r1
                ret
 
@@ -1206,6 +1230,8 @@ sub_objcbq:    push r0
                pop r2
                pop r1
                pop r0
+               cmpi r5, -1                ; If no slot could be found,
+               jz .sub_objcbqZ            ; abort.
                ldi r6, 10
                mul r6, r5                 ; Offset (bytes) into callback table
                addi r6, data.obj_cbs      ; Callback table entry pointer
@@ -1531,6 +1557,14 @@ data.obj_cbs:        dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
+                     dw 0, 0, 0, 0, 0
 
 data.v_menu_vblnk:   dw 0
 data.v_menu_start:   dw 0
@@ -1539,7 +1573,7 @@ data.v_menu_sel:     dw 0
 data.v_level:        dw 0
 data.v_lvlst_vblnk:  dw 0
 
-data.v_level_offs:   dw data.level0, data.level1
+data.v_level_offs:   dw data.intro, data.menu, data.level0, data.level1
 
 data.v_lives:        dw 0
 data.v_vblanks:      dw 0
@@ -1553,6 +1587,7 @@ data.v_lor:          dw 0
 data.v_hmov:         dw 0
 data.v_anim_c:       dw 0
 data.v_hitblk:       dw 0
+data.v_fallingout:   dw 0
 data.sfx_jump:       dw 800
 data.sfx_land:       dw 1000
 data.sfx_intro:      dw 500
@@ -1560,19 +1595,19 @@ data.sfx_coin0:      dw 987
 data.sfx_coin1:      dw 1318
 
 ; Sample music buffer
-data.sfx_music:      dw  8,MUSNOTE_D3,8,0x0830
-                     dw  8,MUSNOTE_F3,8,0x0830
+data.sfx_music:      dw  8,MUSNOTE_D3,8, 0x0830
+                     dw  8,MUSNOTE_F3,8, 0x0830
                      dw  8,MUSNOTE_D4,20,0x0830
-                     dw 30,MUSNOTE_D3,8,0x0830
-                     dw  8,MUSNOTE_F3,8,0x0830
+                     dw 30,MUSNOTE_D3,8, 0x0830
+                     dw  8,MUSNOTE_F3,8, 0x0830
                      dw  8,MUSNOTE_D4,20,0x0830
                      dw 30,MUSNOTE_E4,30,0x0830
-                     dw 46,MUSNOTE_F4,8,0x0830
-                     dw 15,MUSNOTE_E4,5,0x0830
-                     dw 15,MUSNOTE_F4,5,0x0830
-                     dw 30,MUSNOTE_E4,5,0x0830
-                     dw 15,MUSNOTE_C4,5,0x0830
-                     dw 15,MUSNOTE_A4,5,0x0830
-                     dw  8,MUSNOTE_A4,5,0x0830
-                     dw 45,MUSNOTE_D3,5,0x0830
-                     dw  8,MUSNOTE_F3,5,0x0830
+                     dw 46,MUSNOTE_F4,8, 0x0830
+                     dw 15,MUSNOTE_E4,5, 0x0830
+                     dw 15,MUSNOTE_F4,5, 0x0830
+                     dw 30,MUSNOTE_E4,5, 0x0830
+                     dw 15,MUSNOTE_C4,5, 0x0830
+                     dw 15,MUSNOTE_A4,5, 0x0830
+                     dw  8,MUSNOTE_A4,5, 0x0830
+                     dw 45,MUSNOTE_D3,5, 0x0830
+                     dw  8,MUSNOTE_F3,5, 0x0830
