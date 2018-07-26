@@ -68,15 +68,14 @@ _start:        ;jmp menu_init              ; DEBUG: skip the intro
 intro:         ldi r0, 0
                ldm r1, data.sfx_intro
                ldi r2, 6 
-               ldi r3, 0x0ad2
+               ldi r3, 0x0af2
                call sub_sndq
-               ldi r0, LVL_INTRO
-               stm r0, data.v_level
-               call sub_ldlvl             ; Decompress level into tilemap memory
+               call sub_sts_init
                ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 60
-               call sub_wait
+               ldi r1, sub_drwintro
+               call sub_wait_draw
                ldi r0, sub_drwintro
                call sub_fadeout
 
@@ -334,12 +333,11 @@ sub_fadeout:   mov rf, r0
 ;------------------------------------------------------------------------------
 ; Draw the intro screen 
 ;------------------------------------------------------------------------------
-sub_drwintro:  ldi r0, data.str_copy      ; Draw the copyright text
+sub_drwintro:  call sub_sts_drw           ; Draw star field
+               ldi r0, data.str_copy      ; Draw the copyright text
                ldi r1, 32
                ldi r2, 224
                call sub_drwstr
-               ; Draw the game logo
-               call sub_drwmap
                ret
 
 ;------------------------------------------------------------------------------
@@ -691,7 +689,8 @@ sub_drwplyr:   spr 0x1008                    ; Player sprite size is 16x16
 ;------------------------------------------------------------------------------
 ; Display debug info: player x, y.
 ;------------------------------------------------------------------------------
-sub_drwdbg:    mov r0, ra
+sub_drwdbg:    ret
+               mov r0, ra
                ldi r1, data.str_bcd3
                call sub_r2bcd3
                ldi r0, data.str_bcd3
@@ -1092,6 +1091,18 @@ sub_wait:      push r0
                jmp sub_wait
 .sub_waitZ:    ret
 
+sub_wait_draw: push r0
+               push r1
+               call r1
+               call sub_sndstep
+               pop r1
+               pop r0
+               vblnk
+               cmpi r0, 0
+               jz .sub_wait_drZ
+               subi r0, 1
+               jmp sub_wait_draw
+.sub_wait_drZ: ret
 
 ;------------------------------------------------------------------------------
 ; Increase lives count by 1 and play jingle

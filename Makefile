@@ -1,4 +1,4 @@
-SRC:=gfx.s level.s sfx.s plat.s
+SRC:=gfx.s level.s sfx.s plat.s sf.s
 GFX_SRC:=gfx/tilemap.bmp gfx/c2b.bmp gfx/objects.bmp gfx/font.bmp
 GFX=$(patsubst gfx/%.bmp,gfx/%.bin,$(GFX_SRC))
 SFX_SRC:=sfx/mus_menu.mid
