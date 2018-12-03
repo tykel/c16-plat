@@ -9,16 +9,23 @@ LEVELS=$(patsubst level/%.src,level/%.bin,$(LEVELS_SRC))
 all: plat.c16 lvler rsxpack
 
 plat.c16: $(SRC) $(GFX) $(SFX) $(LEVELS)
+	sort gfx.s -o gfx.s
 	sort level.s -o level.s
 	sort sfx.s -o sfx.s
 	as16 $(SRC) -o $@ -m
 	ctags -R .
 
-gfx/c2b.bin: gfx/c2b.bmp
-	img16 $< -o $@ -k 13 
+gfx/c2b.bin: gfx/c2b.bmp rsxpack
+	sed -i '\#$@#d' gfx.s
+	img16 $< -o /tmp/$(@F) -k 13
+	./rsxpack -d /tmp/$(@F) -o $@  >> gfx.s
+	rm /tmp/$(@F)
 
-gfx/%.bin: gfx/%.bmp
-	img16 $< -o $@ -k 1
+gfx/%.bin: gfx/%.bmp rsxpack
+	sed -i '\#$@#d' gfx.s
+	img16 $< -o /tmp/$(@F) -k 1
+	./rsxpack -d /tmp/$(@F) -o $@  >> gfx.s
+	rm /tmp/$(@F)
 
 gfx/tilemap.bmp: gfx/n-tiles.bmp
 	convert $< -crop 16x16 +repage +adjoin /tmp/tile-%02d.bmp
@@ -32,8 +39,7 @@ gfx/objects.bmp: gfx/n-objects.bmp
 
 sfx/%.bin: sfx/%.mid
 	sed -i '\#$@#d' sfx.s
-	midi16 $< --channel 3 && echo -ne \\x00\\x00 | dd conv=notrunc bs=2 count=2 of=$@
-	echo importbin $@ 0 $(shell stat --printf="%s" $@) data.$(basename $(@F)) > sfx.s
+	midi16 $< --channel 3 >> sfx.s && echo -ne \\x00\\x00 | dd conv=notrunc bs=2 count=2 of=$@
 
 level.s: lvler
 

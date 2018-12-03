@@ -55,7 +55,15 @@ MUSNOTE_G5        equ 783
 MUSNOTE_D6        equ 1174
 MUSNOTE_E6        equ 1318
 
-data.level        equ 0xa000
+;------------------------------------------------------------------------------
+; Current memory map:
+;
+;  0000 ... 4fff : Game code, variables, gfx data, sfx data, level data
+;  c000 ... cfff : Decompressed level data
+;  d000 ... efff : Decompression buffer
+;------------------------------------------------------------------------------
+data.level        equ 0xc000
+data.rlebuf       equ 0xd000
 data.paletteA     equ 0xf000
 
 ;------------------------------------------------------------------------------
@@ -104,6 +112,13 @@ menu_loop:     cls
                ldm r0, data.v_menu_start
                cmpi r0, 1
                jnz menu_loop
+               ldm r0, data.v_menu_sel
+               cmpi r0, 1
+               jz .menu_initZ
+               call sub_sndreset
+               ldi r0, sub_drwmenu
+               call sub_fadeout
+               jmp star_mode
 .menu_initZ:   call sub_sndreset          ; Reset audio driver state
                ldi r0, sub_drwmenu        ; Fade-out to next screen
                call sub_fadeout
@@ -143,7 +158,8 @@ main_init:     bgc 0                      ; Dark background
                call sub_initdata          ; Initialize memory-resident vars
                call sub_sndreset          ; Reset audio driver state
                call sub_ldlvl             ; Decompress level into tilemap memory
-               call sub_rndbg
+               call sub_ldgfx             ; Decompress graphics
+               call sub_rndbg             ; Sprinkle some background tiles
                call sub_scroll            ; Do initial scrolling adjustment
               
 main_fadein:   ldi r0, sub_drwmap
@@ -238,6 +254,11 @@ main_gameover: ldi r0, data.str_gameover
 
 __spin:        vblnk
                jmp __spin
+
+star_mode:     snd0
+.star_modeL:   vblnk
+               call sub_sts_drw
+               jmp star_mode
 
 ;------------------------------------------------------------------------------
 ; Initialize the persistent registers to sane values
@@ -402,8 +423,17 @@ sub_drwmenu:   ldi r0, data.str_start
                ldi r1, 100
                ldi r2, 156
                ldm r3, data.v_menu_sel
-               shl r3, 4
-               add r1, r3
+               shl r3, 1
+               sub r0, r3
+               call sub_drwstr
+               ldi r0, data.str_demo
+               ldi r1, 100
+               ldi r2, 188
+               ldm r3, data.v_menu_sel
+               not r3
+               andi r3, 1
+               shl r3, 1
+               sub r0, r3
                call sub_drwstr
                call sub_drwmap
                ret
@@ -721,6 +751,15 @@ sub_drwdbg:    ret
                ldi r1, 144
                ldi r2, 228
                call sub_drwstr
+
+               ldm r0, data.v_menu_sel
+               ldi r1, data.str_bcd3
+               call sub_r2bcd3
+               ldi r0, data.str_bcd3
+               ldi r1, 192
+               ldi r2, 228
+               call sub_drwstr
+
                ret
 
 ;------------------------------------------------------------------------------
@@ -858,19 +897,27 @@ sub_ldlvl:     ldm r0, data.v_level
                ldm r1, r0                 ; Read level height (in tiles)
                stm r1, data.v_level_h
                addi r0, 2
-.brk:          call sub_t_derle           ; Decompress the tile data
+               ldi r1, data.level
+               call sub_derle             ; Decompress the tile data
                call sub_o_parse           ; Read in the level object data
 .sub_ldlvlZ:   ret
 
 ;------------------------------------------------------------------------------
-; Decompress the RLE level tiles
+; Load the tile graphics into memory. Decode using the same RLE scheme.
+; Handles 16x16 tiles only.
 ;------------------------------------------------------------------------------
-sub_t_derle:   ldi r5, data.level         ; Destination pointer initial value
+sub_ldgfx:     nop
+               ret
+
+;------------------------------------------------------------------------------
+; Decompress RLE data 
+;------------------------------------------------------------------------------
+sub_derle:     mov r5, r1                 ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
                ldi r2, 0                  ; Section input byte counter
                ldi r6, 2                  ; Last input size
-.sub_t_derleA: cmp r2, r1                 ; If we read all section bytes, end
-               jge .sub_t_derleZ
+.sub_derleA:   cmp r2, r1                 ; If we read all section bytes, end
+               jge .sub_derleZ
                add r2, r6                 ; Increment input byte counter
                ldi r6, 2
                mov r3, r2
@@ -880,15 +927,15 @@ sub_t_derle:   ldi r5, data.level         ; Destination pointer initial value
                andi r3, 0xff              ; Byte value to repeat
                shr r4, 8                  ; Number of repetitions (max. 255)
                cmpi r3, 0
-               jz .sub_t_derleB
+               jz .sub_derleB
                ldi r4, 1
                ldi r6, 1
-.sub_t_derleB: stm r3, r5                 ; Write repeated byte
+.sub_derleB:   stm r3, r5                 ; Write repeated byte
                addi r5, 2                 ; Increment destination pointer
                subi r4, 1                 ; Decrement counter
-               jz .sub_t_derleA
-               jmp .sub_t_derleB
-.sub_t_derleZ: add r0, r1
+               jz .sub_derleA
+               jmp .sub_derleB
+.sub_derleZ:   add r0, r1
                addi r0, 2
                ret 
 
@@ -1502,7 +1549,11 @@ data.str_fallout:    db "F A L L   O U T !"
                      db 0
 data.str_gameover:   db "G A M E   O V E R"
                      db 0
+                     db "> "
 data.str_start:      db "Start"
+                     db 0
+                     db "> "
+data.str_demo:       db "Switch to Intro"
                      db 0
 data.str_bcd3:       db 0,0,0,0
 data.palette:        db 0x00,0x00,0x00
@@ -1579,7 +1630,7 @@ data.obj_cbs:        dw 0, 0, 0, 0, 0
 
 data.v_menu_vblnk:   dw 0
 data.v_menu_start:   dw 0
-data.v_menu_sel:     dw 0
+data.v_menu_sel:     dw 1 
 
 data.v_level:        dw 0
 data.v_lvlst_vblnk:  dw 0

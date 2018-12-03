@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 size_t rle(uint8_t *out, uint8_t *in, size_t in_size, size_t max_out_size, bool only0)
@@ -32,13 +33,14 @@ size_t rle(uint8_t *out, uint8_t *in, size_t in_size, size_t max_out_size, bool 
 int main(int argc, char **argv)
 {
    FILE *fin = NULL, *fout = NULL;
-   char *fname_in = NULL, *fname_out = NULL;
+   char *fname_in = NULL, *fname_out = NULL, *fname_out_imp = NULL;
+   char *fname_pos = NULL, *suffix_pos = NULL;
    uint8_t *buf_in = NULL, *buf_out = NULL;
    size_t len_in, out_len;
-   bool onlyZeroEnc = true;
+   bool onlyZeroEnc = true, dummy = false;
    char opt;
 
-   while ((opt = getopt(argc, argv, "ao:")) != -1) {
+   while ((opt = getopt(argc, argv, "dao:")) != -1) {
       switch (opt) {
          case 'o':
             fname_out = optarg;
@@ -46,8 +48,11 @@ int main(int argc, char **argv)
          case 'a':
             onlyZeroEnc = false;
             break;
+         case 'd':
+            dummy = true;
+            break;
          default:
-            printf("Usage: rsxpack [-a] <input> [-o <output>]\n");
+            printf("Usage: rsxpack [-da] <input> [-o <output>]\n");
             exit(0);
       }
    }
@@ -82,10 +87,15 @@ int main(int argc, char **argv)
     */
    buf_out = malloc(2 * len_in);
 
-   out_len = rle(buf_out, buf_in, len_in, 2 * len_in, onlyZeroEnc);
-   if (out_len == 0) {
-      fprintf(stderr, "error: RLE failed\n");
-      exit(1);
+   if (dummy) {
+      out_len = len_in;
+      memcpy(buf_out, buf_in, len_in);
+   } else {
+      out_len = rle(buf_out, buf_in, len_in, 2 * len_in, onlyZeroEnc);
+      if (out_len == 0) {
+         fprintf(stderr, "error: RLE failed\n");
+         exit(1);
+      }
    }
 
    if (fname_out) {
@@ -98,6 +108,16 @@ int main(int argc, char **argv)
       fout = stdout;
    }
    fwrite(buf_out, 1, out_len, fout);
+
+   fname_out_imp = malloc(strlen(fname_out));
+   strcpy(fname_out_imp, fname_out);
+   if ((suffix_pos = strrchr(fname_out_imp, '.')) != NULL) {
+      *suffix_pos = '\0';
+   }
+   while ((fname_pos = strrchr(fname_out_imp, '/')) != NULL) {
+      *fname_pos = '_';
+   }
+   printf("importbin %s 0 %d data.%s\n", fname_out, out_len, fname_out_imp);
 
    free(buf_out);
    free(buf_in);
