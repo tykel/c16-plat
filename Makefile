@@ -8,6 +8,9 @@ LEVELS=$(patsubst level/%.src,level/%.bin,$(LEVELS_SRC))
 
 all: plat.c16 lvler rsxpack
 
+run: plat.c16
+	mash16 plat.c16 --symbols plat.sym --audio-volume 128
+
 plat.c16: $(SRC) $(GFX) $(SFX) $(LEVELS)
 	sort gfx.s -o gfx.s
 	sort level.s -o level.s
