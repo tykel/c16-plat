@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -240,47 +241,137 @@ size_t rle(uint8_t *src, uint8_t *dst, size_t len)
    return d - dst;
 }
 
-size_t compress(uint16_t *map, int cols, int rows, uint8_t **dst)
+int find_byte(uint8_t *in, uint8_t *in_end, uint8_t v)
 {
+   uint8_t *in_start = in;
+   for (; in != in_end; ++in) {
+      if (*in == v) {
+         return in - in_start;
+      }
+   }
+   return -1;
+}
+
+/*
+ * Sliding window encoding.
+ *
+ * Simplistic variant of LZ-family encoding.
+ * In this scheme, each length-value pair may encode one of two situations:
+ * - "write the following byte 0<N<128 times"
+ * - "copy 0<N<128 bytes from the following negative offset in the decode buffer"
+ */
+size_t swe(uint8_t *out, uint8_t *in, size_t in_size, uint8_t sw_size)
+{
+   int bc = 0;
+   int i = 0;
+   int window_size = 0;
+   
+   // in:  00 00 00 00 01 f8 00 00 fa fa f8 00 14 00 00 00
+   // out: 84 00 81 01 81 f8 02 06 82 fa 02 05 81 14 83 0c
+   //
+   while (i < in_size) {
+      uint8_t b = in[i];
+      int b_pos_in_w = find_byte(in + i - window_size, in + i, b);
+      if (b_pos_in_w == -1) {
+         /* 
+          * If the current input byte is not in the window, encode as a
+          * literal.
+          */
+         size_t n = 1;
+         while (in[i + n] == b) ++n;
+         out[bc++] = 0x80 + n;
+         out[bc++] = b;
+         i += n;
+         window_size = MIN(window_size + n, sw_size - 1);
+      } else {
+         /*
+          * Otherwise, find the longest sequence of bytes in the window which
+          * matches the current+following input bytes.
+          */
+         size_t longest_match = 1;
+         size_t longest_match_start = b_pos_in_w;
+         // Each occurrence of b in the window may mark the start of a run.
+         while (b_pos_in_w != -1) {
+            int next_b_in_w_offs;
+            size_t match_len = 1;
+            bool match = true;
+            while (match &&
+                   i + b_pos_in_w - window_size + match_len < in_size &&
+                   b_pos_in_w + match_len < window_size) {
+               match = memcmp(in + i - window_size + b_pos_in_w, in + i, match_len + 1) == 0;
+               if (match) ++match_len;
+            }
+            if (match_len > longest_match) {
+               longest_match = match_len;
+               longest_match_start = b_pos_in_w;
+            }
+            next_b_in_w_offs = find_byte(in + i - window_size + b_pos_in_w + 1,
+                                         in + i,
+                                         b);
+            if (next_b_in_w_offs < 0)
+               b_pos_in_w = -1;
+            else
+               b_pos_in_w += next_b_in_w_offs + 1;
+         }
+         out[bc++] = longest_match;
+         out[bc++] = window_size - longest_match_start;
+         i += longest_match;
+         window_size = MIN(window_size + longest_match, sw_size - 1);
+      }
+   }
+   return bc;
+}
+
+size_t compress(uint16_t *map, int cols, int rows, bool use_swe, uint8_t **dst)
+{
+   const char *enc_str = use_swe ? "SWE" : "RLE";
    const size_t bufsz = rows * cols;
    uint8_t *tmp_tiles = calloc(1, bufsz);
-   uint8_t *rle_tiles = calloc(1, 2 * bufsz);
-   uint8_t *rle_map;
+   uint8_t *cpx_tiles = calloc(1, 2 * bufsz);
+   uint8_t *cpx_map;
    uint8_t *tmp;
    int x, y;
-   int tiles_rle_size = 0;
-   int total_rle_size = 0;
+   int tiles_cpx_size = 0;
+   int total_cpx_size = 0;
 
    for (y = 0; y < rows; y++) {
       for (x = 0; x < cols; x++) {
          uint16_t val = map[(y * cols + x)];
          tmp_tiles[y * cols + x] = val & 0xff;
+         printf("%02x ", val & 0xff);
       }
+      printf("\n");
    }
-   
-   tiles_rle_size = rle(tmp_tiles, rle_tiles, bufsz);
+  
+   if (use_swe) {
+      tiles_cpx_size = swe(cpx_tiles, tmp_tiles, bufsz, 128);
+   } else {
+      tiles_cpx_size = rle(tmp_tiles, cpx_tiles, bufsz);
+   }
 #ifdef DEBUG
    printf("Raw tiles data:\n");
    print_buffer(tmp_tiles, bufsz);
-   printf("RLE tiles data:\n");
-   print_buffer(rle_tiles, tiles_rle_size);
-   printf("RLE size ratio for tiles data: % 3.2f %%\n", 100.f*(float)tiles_rle_size/(float)bufsz);
+   printf("%s tiles data:\n", enc_str);
+   print_buffer(cpx_tiles, tiles_cpx_size);
+   printf("%s size ratio for tiles data: % 3.2f %%\n",
+          enc_str, 100.f*(float)tiles_cpx_size/(float)bufsz);
 #endif
 
-   total_rle_size = 2 + tiles_rle_size + 2 + 6*obj_it;
+   total_cpx_size = 2 + tiles_cpx_size + 2 + 6*obj_it;
    printf("Raw map size: %d bytes\n", meta.width * meta.height * 2);
-   printf("RLE map size: %d bytes\n", total_rle_size);
-   printf("RLE size is % .2f %% of raw\n", 100.f*(float)total_rle_size/(float)(meta.width * meta.height * 2));
+   printf("%s map size: %d bytes\n", enc_str, total_cpx_size);
+   printf("%s size is % .2f %% of raw\n",
+          enc_str, 100.f*(float)total_cpx_size/(float)(meta.width * meta.height * 2));
 
    /* Allow for the section sizes too! */
-   rle_map = malloc(total_rle_size);
-   tmp = rle_map;
+   cpx_map = malloc(total_cpx_size);
+   tmp = cpx_map;
    // 2 b
-   *(int16_t *)tmp = tiles_rle_size;
+   *(int16_t *)tmp = tiles_cpx_size;
    tmp += 2;
-   // tiles_rle_size b
-   memcpy(tmp, rle_tiles, tiles_rle_size);
-   tmp += tiles_rle_size;
+   // tiles_cpx_size b
+   memcpy(tmp, cpx_tiles, tiles_cpx_size);
+   tmp += tiles_cpx_size;
    printf("writing %04x\n", obj_it);
    // 2 b
    *(int16_t *)tmp = (int16_t) obj_it;
@@ -298,12 +389,12 @@ size_t compress(uint16_t *map, int cols, int rows, uint8_t **dst)
       tmp += 2;
    }
 
-   *dst = rle_map;
+   *dst = cpx_map;
    
    free(tmp_tiles);
-   free(rle_tiles);
+   free(cpx_tiles);
 
-   return total_rle_size;
+   return total_cpx_size;
 }
 
 int main(int argc, char **argv)
@@ -321,12 +412,20 @@ int main(int argc, char **argv)
          expect_eq(sizeof(expected_dst), len, "RLE test (size)");
          expect_eqmem(expected_dst, actual_dst, "RLE test (contents)"); 
       }
+      {
+         uint8_t src[] = { 0, 0, 0, 0, 0, 1, 1, 0 };
+         uint8_t expected_dst[] = { 0x85, 0, 0x82, 1, 0x01, 7 };
+         uint8_t actual_dst[256] = { 0 };
+         size_t len = swe(actual_dst, src, sizeof(src), 128);
+         expect_eq(sizeof(expected_dst), len, "SWE test (size)");
+         expect_eqmem(expected_dst, actual_dst, "SWE test (contents)");
+      }
       return 0;
    }
 
    if (argc < 4 || !strncmp(argv[1], "-h", 2) || !strncmp(argv[1], "--help", 6) ||
        strncmp(argv[2], "-o", 2)) {
-      printf("usage: lvler <infile> -o <outfile> [--rle]\n");
+      printf("usage: lvler <infile> -o <outfile> [--rle|--swe]\n");
       printf("       lvler test\n");
       return 0;
    }
@@ -347,18 +446,21 @@ int main(int argc, char **argv)
    file_output = fopen(argv[3], "wb");
    
    file_output_len += fwrite(&meta, 1, 2*sizeof(int16_t), file_output);
-   if (argc > 4 && !strncmp(argv[4], "--rle", 5)) {
+   if (argc > 4 && !strncmp(argv[4], "--rle", 5) ||
+       argc > 4 && !strncmp(argv[4], "--swe", 5)) {
       size_t compress_len;
       size_t file_actual_len;
-      uint8_t *rle_map;
-      compress_len = compress(map, meta.width, meta.height, &rle_map);
+      uint8_t *cpx_map;
+      bool use_swe = !strncmp(argv[4], "--swe", 5);
+      compress_len = compress(map, meta.width, meta.height, use_swe, &cpx_map);
       printf("compress returned len %d bytes\n", compress_len);
       file_output_len += compress_len;
-      file_actual_len = fwrite(rle_map, 1, file_output_len, file_output);
+      file_actual_len = fwrite(cpx_map, 1, file_output_len, file_output);
       if (file_actual_len != file_output_len) {
-         printf("warning: wrote %u bytes, expected %u bytes\n", file_actual_len, file_output_len);
+         printf("warning: wrote %u bytes, expected %u bytes\n",
+                file_actual_len, file_output_len);
       }
-      free(rle_map);
+      free(cpx_map);
    } else {
       file_output_len += meta.width * meta.height * sizeof(int16_t);
       fwrite(map, file_output_len, 1, file_output);

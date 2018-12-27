@@ -21,13 +21,13 @@ plat.c16: $(SRC) $(GFX) $(SFX) $(LEVELS)
 gfx/c2b.bin: gfx/c2b.bmp rsxpack
 	sed -i '\#$@#d' gfx.s
 	img16 $< -o /tmp/$(@F) -k 13
-	./rsxpack -d /tmp/$(@F) -o $@  >> gfx.s
+	./rsxpack -e none /tmp/$(@F) -o $@  >> gfx.s
 	rm /tmp/$(@F)
 
 gfx/%.bin: gfx/%.bmp rsxpack
 	sed -i '\#$@#d' gfx.s
 	img16 $< -o /tmp/$(@F) -k 1
-	./rsxpack -d /tmp/$(@F) -o $@  >> gfx.s
+	./rsxpack -e none /tmp/$(@F) -o $@  >> gfx.s
 	rm /tmp/$(@F)
 
 gfx/tilemap.bmp: gfx/n-tiles.bmp
@@ -50,11 +50,11 @@ lvler: tool/lvler.c
 	gcc $< -o $@ -O2
 
 rsxpack: tool/rsxpack.c
-	gcc $< -o $@ -O0 -g
+	gcc $< -o $@ -O2
 
 lvler-gui: tool/lvler-gui.c
 	gcc $< -o $@ -O2 $(shell sdl-config --cflags) $(shell sdl-config --libs)
 
 level/%.bin: level/%.src lvler
 	sed -i '\#$@#d' level.s
-	./lvler $< -o $@ --rle | grep importbin >> level.s
+	./lvler $< -o $@ --swe | grep importbin >> level.s

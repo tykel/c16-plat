@@ -898,7 +898,8 @@ sub_ldlvl:     ldm r0, data.v_level
                stm r1, data.v_level_h
                addi r0, 2
                ldi r1, data.level
-               call sub_derle             ; Decompress the tile data
+;               call sub_derle             ; Decompress the tile data
+               call sub_deswe
                call sub_o_parse           ; Read in the level object data
 .sub_ldlvlZ:   ret
 
@@ -909,6 +910,45 @@ sub_ldlvl:     ldm r0, data.v_level
 sub_ldgfx:     nop
                ret
 
+;------------------------------------------------------------------------------
+; Decompress SWE data 
+;------------------------------------------------------------------------------
+sub_deswe:     mov r5, r1                 ; Destination pointer initial value
+               ldm r1, r0                 ; Load tiles' SWE section size
+               ldi r2, 2                  ; Section input byte counter
+.sub_desweA:   cmp r2, r1                 ; If we read all section bytes, end
+               jge .sub_desweZ
+               mov r3, r2
+               add r3, r0                 ; Current offset into section
+.ZZZ:          ldm r3, r3                 ; Read either value + reps, or
+               mov r4, r3                 ; copy size + offset backwards for src
+               andi r3, 0xff
+               shr r4, 8
+               tsti r3, 0x80              ; Bit 7 set means value + reps
+               jz .sub_desweC
+               andi r3, 0x7f
+               addi r2, 2
+.sub_desweB:   ldm r6, r5
+               add r6, r4
+               stm r6, r5
+               addi r5, 1
+               subi r3, 1 
+               jz .sub_desweA
+               jmp .sub_desweB
+.sub_desweC:   andi r3, 0x7f
+               mov r6, r5
+               sub r6, r4
+               addi r2, 2
+.sub_desweD:   ldm r8, r6
+               stm r8, r5
+               addi r5, 1
+               addi r6, 1
+               subi r3, 1
+               jz .sub_desweA
+               jmp .sub_desweD
+.sub_desweZ:   add r0, r1
+               addi r0, 2
+               ret
 ;------------------------------------------------------------------------------
 ; Decompress RLE data 
 ;------------------------------------------------------------------------------

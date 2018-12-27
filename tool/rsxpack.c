@@ -221,7 +221,7 @@ int main(int argc, char **argv)
                break;
             }
          default:
-            printf("Usage: rsxpack [-t ENC_{NONE,RLE,SWE}] [-a] <input> [-o <output>]\n");
+            printf("Usage: rsxpack [-e {none|rle|swe}] [-ta] <input> [-o <output>]\n");
             exit(0);
       }
    }
