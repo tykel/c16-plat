@@ -50,7 +50,7 @@ lvler: tool/lvler.c
 	gcc $< -o $@ -O2
 
 rsxpack: tool/rsxpack.c
-	gcc $< -o $@ -O2
+	gcc $< -o $@ -O0 -g
 
 lvler-gui: tool/lvler-gui.c
 	gcc $< -o $@ -O2 $(shell sdl-config --cflags) $(shell sdl-config --libs)
