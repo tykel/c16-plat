@@ -937,8 +937,8 @@ sub_deswe:     mov r5, r1                 ; Destination pointer initial value
 .sub_desweB:   stm r4, r5                 ; Write repeated byte
                add r5, r8
                subi r3, 1                 ; Input is byte based so move 1
-               jz .sub_desweA
-               jmp .sub_desweB
+               jnz .sub_desweB
+               jmp .sub_desweA
 .sub_desweC:   andi r3, 0x7f
                mov r6, r5                 ; Copy start addr. is cur. offset...
                mul r4, r8                 ;
@@ -948,8 +948,8 @@ sub_deswe:     mov r5, r1                 ; Destination pointer initial value
                add r5, r8
                add r6, r8
                subi r3, 1                 ; Input is byte based so move 1
-               jz .sub_desweA
-               jmp .sub_desweD
+               jnz .sub_desweD
+               jmp .sub_desweA
 .sub_desweZ:   add r0, r1                 ; Add input length to start address
                addi r0, 2                 ; Plus 2 to account for size variable
                ret
