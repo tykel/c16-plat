@@ -58,7 +58,7 @@ MUSNOTE_E6        equ 1318
 ;------------------------------------------------------------------------------
 ; Current memory map:
 ;
-;  0000 ... 4fff : Game code, variables, gfx data, sfx data, level data
+;  0000 ... 7fff : Game code, variables, gfx data, sfx data, level data
 ;  c000 ... cfff : Decompressed level data
 ;  d000 ... efff : Decompression buffer
 ;------------------------------------------------------------------------------
@@ -69,7 +69,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        jmp menu_init              ; DEBUG: skip the intro
+_start:        ;jmp menu_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -91,7 +91,11 @@ intro:         ldi r0, 0
 ; Menu logic
 ;--------------------
 menu_init:     bgc 0
-               ldi r0, data.mus_menu
+               ldi r0, data.sfx_mus_menu  ; Decompress music into RLE buffer
+               ldi r1, data.rlebuf
+               ldi r2, 1                  ; Music to be dec'd to indiv. bytes
+               call sub_deswe
+               ldi r0, data.rlebuf
                ldi r1, 1
                ldi r2, sub_cb_music
                call sub_sndstrm
@@ -225,15 +229,15 @@ main_flsh_die: bgc 3                      ; Flicker red background rapidly
                ldi r0, 6
                ldi r1, 5
                call sub_drwflash
-.a:            cls
+               cls
                ldi r0, sub_drwmap         ; Then fade to black
                call sub_fadeout
-.b:            call sub_initregs          ; Reset the player position
+               call sub_initregs          ; Reset the player position
                call sub_initdata          ; Reset the scores
                pop r1
                subi r1, 1
                stm r1, data.v_lives
-.c:            call sub_ldlvl             ; Decompress level into tilemap memory
+               call sub_ldlvl             ; Decompress level into tilemap memory
                call sub_rndbg
                jmp main_fadein            
 
@@ -583,7 +587,7 @@ sub_jump:      ldm r0, data.v_jump     ; Do not jump again if already jumping
                cmpi rc, 0              ; Do not jump if falling
                jnz .sub_jump_Z
                ldm r0, data.v_hitblk   ; Do not jump if we have not hit a floor
-.break:        cmpi r0, 1 
+               cmpi r0, 1 
                jnz .sub_jump_Z
                ldi r0, 0
                stm r0, data.v_hitblk
@@ -873,19 +877,7 @@ sub_setblk:    shr r0, 4
                ret
 
 ;------------------------------------------------------------------------------
-; Load current level into memory. Decode using a simple RLE scheme.
-; Zero runs are encoded as '0x00' + run length byte.
-; Non-zero values are encoded literally.
-;
-; This custom encoding scheme exploits the long zero runs that result from
-; randomly-generated backgrounds.
-;
-; Data layout (example): 10 00 00 03 ff 0d
-; Meaning: 
-; - Section is 0x0010 (16) bytes long.
-; - Repeat byte '0x00' 3 times.
-; - Repeat byte '0xff' once.
-; - Repeat byte '0x0d' once.
+; Load current level into memory. Decode using eithe RLE or SWE scheme.
 ;------------------------------------------------------------------------------
 sub_ldlvl:     ldm r0, data.v_level
                shl r0, 1
@@ -899,7 +891,8 @@ sub_ldlvl:     ldm r0, data.v_level
                addi r0, 2
                ldi r1, data.level
 ;               call sub_derle             ; Decompress the tile data
-               call sub_deswe
+               ldi r2, 2                  ; Music to be dec'd to words 
+               call sub_deswe             ; Decompress the tile data
                call sub_o_parse           ; Read in the level object data
 .sub_ldlvlZ:   ret
 
@@ -911,9 +904,22 @@ sub_ldgfx:     nop
                ret
 
 ;------------------------------------------------------------------------------
-; Decompress SWE data 
+; Decompress SWE data (sliding window encoding)
+;
+; This LZ-like encoding scheme exploits repeated sequences that are common in
+; data (e.g. levels have groups of tiles that are repeated throughout).
+; Sequences are encoded either directly (repeat byte N times), or as block
+; copies from a previous position in the decoded output.
+;
+; Data layout (example): 10 00 84 00 81 f8 04 04
+; Meaning: 
+; - Section is 0x0010 (16) bytes long.
+; - Write byte '0x00' 4 times.
+; - Write byte '0xf8' once.
+; - Copy 4 bytes from decode buffer, from current position minus 4.
 ;------------------------------------------------------------------------------
 sub_deswe:     mov r5, r1                 ; Destination pointer initial value
+               mov r8, r2                 ; Decoded data increment size
                ldm r1, r0                 ; Load tiles' SWE section size
                ldi r2, 2                  ; Section input byte counter
 .sub_desweA:   cmp r2, r1                 ; If we read all section bytes, end
@@ -921,34 +927,47 @@ sub_deswe:     mov r5, r1                 ; Destination pointer initial value
                mov r3, r2
                addi r2, 2
                add r3, r0                 ; Current offset into section
-               ldm r3, r3                 ; Read either value + reps, or
-               mov r4, r3                 ; copy size + offset backwards for src
+               ldm r3, r3                 ; Read either value + reps, or...
+               mov r4, r3                 ; ...copy size + offs. bkw'ds for src
                andi r3, 0xff
                shr r4, 8
                tsti r3, 0x80              ; Bit 7 set means value + reps
                jz .sub_desweC
                andi r3, 0x7f
-.sub_desweB:   stm r4, r5
-               addi r5, 2
-               subi r3, 1 
+.sub_desweB:   stm r4, r5                 ; Write repeated byte
+               add r5, r8
+               subi r3, 1                 ; Input is byte based so move 1
                jz .sub_desweA
                jmp .sub_desweB
 .sub_desweC:   andi r3, 0x7f
-               mov r6, r5
-               shl r4, 1
-               sub r6, r4
-.sub_desweD:   ldm r8, r6
-               stm r8, r5
-               addi r5, 2
-               addi r6, 2
-               subi r3, 1
+               mov r6, r5                 ; Copy start addr. is cur. offset...
+               mul r4, r8                 ;
+               sub r6, r4                 ; ... minus N words.
+.sub_desweD:   ldm r7, r6                 ; Load word from input
+               stm r7, r5                 ; Store it.
+               add r5, r8
+               add r6, r8
+               subi r3, 1                 ; Input is byte based so move 1
                jz .sub_desweA
                jmp .sub_desweD
-.sub_desweZ:   add r0, r1
-               addi r0, 2
+.sub_desweZ:   add r0, r1                 ; Add input length to start address
+               addi r0, 2                 ; Plus 2 to account for size variable
                ret
 ;------------------------------------------------------------------------------
-; Decompress RLE data 
+; Decompress RLE data (run-length encoding)
+;
+; Zero runs are encoded as '0x00' + run length byte.
+; Non-zero values are encoded literally.
+;
+; This custom encoding scheme exploits the long zero runs that result from
+; randomly-generated backgrounds.
+;
+; Data layout (example): 10 00 00 03 ff 0d
+; Meaning: 
+; - Section is 0x0010 (16) bytes long.
+; - Repeat byte '0x00' 3 times.
+; - Repeat byte '0xff' once.
+; - Repeat byte '0x0d' once.
 ;------------------------------------------------------------------------------
 sub_derle:     mov r5, r1                 ; Destination pointer initial value
                ldm r1, r0                 ; Load tiles' RLE section size
@@ -1472,7 +1491,7 @@ sub_sndstep:   ldm r1, data.snd_pos
                stm r2, .sub_sndstepG      ; Write to SNG word 1
 .sub_sndstepG: db 0x0e, 0x00              ; SNG instruction
 .sub_sndstepH: db 0x80, 0x80
-.p:            db 0x0d, 0x01              ; SNP instruction
+               db 0x0d, 0x01              ; SNP instruction
 .sub_sndstepP: db 0x00, 0x00
                ldm r0, data.snd_pos       ; Point to next sound in track
                addi r0, 1

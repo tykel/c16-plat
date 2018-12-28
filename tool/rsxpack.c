@@ -11,71 +11,6 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-int run_tests(void)
-{
-   uint8_t i[]  = {
-      0x00, 0x00, 0x00, 0x00, 0x01, 0xf8, 0x00, 0x00,
-      0xfa, 0xfa, 0xf8, 0x00, 0x14, 0x00, 0x00, 0x00,
-   };
-   // SWE 1
-   {
-      uint8_t e[]  = {
-         0x84, 0x00, 0x81, 0x01, 0x81, 0xf8, 0x02, 0x06,
-         0x82, 0xfa, 0x02, 0x05, 0x81, 0x14, 0x03, 0x0d,
-      };
-      uint8_t o[2 * sizeof(e)] = { 0 };
-      size_t o_size;
-      if ((o_size = swe(o, i, sizeof(i), 128)) != sizeof(e)) {
-         fprintf(stderr, "test.fail: swe: output size (%d) != expected size (%d)\n",
-                 o_size, sizeof(e));
-         return -1;
-      }
-      if (memcmp(e, o, sizeof(e)) != 0) {
-         int n;
-         fprintf(stderr, "test.fail: swe: output differs from expected.\n");
-         for (n = 0; n < sizeof(e); ++n) {
-            fprintf(stderr, "%02x ", o[n]);
-         }
-         fprintf(stderr, "\n");
-         for (n = 0; n < sizeof(e); ++n) {
-            fprintf(stderr, "%02x ", e[n]);
-         }
-         fprintf(stderr, "\n");
-      } else {
-         printf("test.success: swe\n");
-      }
-   }
-   // RLE 1
-   {
-      uint8_t e[]  = {
-         0x00, 0x04, 0x01, 0xf8, 0x00, 0x02, 0xfa, 0xfa,
-         0xf8, 0x00, 0x01, 0x14, 0x00, 0x03,
-      }; 
-      uint8_t o[2 * sizeof(e)] = { 0 };
-      size_t o_size;
-      if ((o_size = rle(o, i, sizeof(i))) != sizeof(e)) {
-         fprintf(stderr, "test.fail: rle: output size (%d) != expected size (%d)\n",
-                 o_size, sizeof(e));
-         return -1;
-      }
-      if (memcmp(e, o, sizeof(e)) != 0) {
-         int n;
-         fprintf(stderr, "test.fail: rle: output differs from expected.\n");
-         for (n = 0; n < sizeof(e); ++n) {
-            fprintf(stderr, "%02x ", o[n]);
-         }
-         fprintf(stderr, "\n");
-         for (n = 0; n < sizeof(e); ++n) {
-            fprintf(stderr, "%02x ", e[n]);
-         }
-         fprintf(stderr, "\n");
-      } else {
-         printf("test.success: rle\n");
-      }
-   }
-   
-}
-
 int main(int argc, char **argv)
 {
    FILE *fin = NULL, *fout = NULL;
@@ -83,15 +18,11 @@ int main(int argc, char **argv)
    char *fname_pos = NULL, *suffix_pos = NULL;
    uint8_t *buf_in = NULL, *buf_out = NULL;
    size_t len_in, out_len;
-   bool test = false;
    char opt;
    enum { ENC_NONE, ENC_RLE, ENC_SWE } enc_type = ENC_RLE;
 
    while ((opt = getopt(argc, argv, "te:ao:")) != -1) {
       switch (opt) {
-         case 't':
-            test = true;
-            break;
          case 'o':
             fname_out = optarg;
             break;
@@ -107,17 +38,12 @@ int main(int argc, char **argv)
                break;
             }
          default:
-            printf("Usage: rsxpack [-e {none|rle|swe}] [-ta] <input> [-o <output>]\n");
+            printf("Usage: rsxpack [-e {none|rle|swe}] <input> [-o <output>]\n");
             exit(0);
       }
    }
    if (optind < argc) {
       fname_in = argv[optind];
-   }
-
-   if (test) {
-      printf("Running tests...\n");
-      return run_tests();
    }
 
    if (fname_in) {
@@ -172,6 +98,9 @@ int main(int argc, char **argv)
       }
    } else {
       fout = stdout;
+   }
+   if (enc_type != ENC_NONE) {
+      fwrite(&out_len, 2, 1, fout);
    }
    fwrite(buf_out, 1, out_len, fout);
 

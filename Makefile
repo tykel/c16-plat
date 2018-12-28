@@ -40,9 +40,12 @@ gfx/objects.bmp: gfx/n-objects.bmp
 	convert /tmp/obj-*.bmp -append $@
 	rm /tmp/obj-*.bmp
 
-sfx/%.bin: sfx/%.mid
+sfx/%.bin: sfx/%.mid rsxpack
 	sed -i '\#$@#d' sfx.s
-	midi16 $< --channel 3 >> sfx.s && echo -ne \\x00\\x00 | dd conv=notrunc bs=2 count=2 of=$@
+	midi16 $< --channel 4 && echo -ne \\x00\\x00 | dd conv=notrunc bs=2 count=2 of=$@
+	mv sfx/mus_menu.bin /tmp/sfx-$(@F)
+	./rsxpack -e swe /tmp/sfx-$(@F) -o $@ >> sfx.s
+	rm /tmp/sfx-$(@F)
 
 level.s: lvler
 
