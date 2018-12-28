@@ -46,11 +46,14 @@ sfx/%.bin: sfx/%.mid
 
 level.s: lvler
 
-lvler: tool/lvler.c
-	gcc $< -o $@ -O2
+lvler: tool/rle.c tool/swe.c tool/lvler.c
+	gcc $^ -o $@ -O2 -Itool
 
-rsxpack: tool/rsxpack.c
-	gcc $< -o $@ -O2
+compress_test: tool/rle.c tool/swe.c tool/test.c
+	gcc $^ -o $@ -O2 -Itool
+
+rsxpack: tool/rle.c tool/swe.c tool/rsxpack.c
+	gcc $^ -o $@ -O2
 
 lvler-gui: tool/lvler-gui.c
 	gcc $< -o $@ -O2 $(shell sdl-config --cflags) $(shell sdl-config --libs)

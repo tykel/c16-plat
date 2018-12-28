@@ -69,7 +69,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        ;jmp menu_init              ; DEBUG: skip the intro
+_start:        jmp menu_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -919,30 +919,28 @@ sub_deswe:     mov r5, r1                 ; Destination pointer initial value
 .sub_desweA:   cmp r2, r1                 ; If we read all section bytes, end
                jge .sub_desweZ
                mov r3, r2
+               addi r2, 2
                add r3, r0                 ; Current offset into section
-.ZZZ:          ldm r3, r3                 ; Read either value + reps, or
+               ldm r3, r3                 ; Read either value + reps, or
                mov r4, r3                 ; copy size + offset backwards for src
                andi r3, 0xff
                shr r4, 8
                tsti r3, 0x80              ; Bit 7 set means value + reps
                jz .sub_desweC
                andi r3, 0x7f
-               addi r2, 2
-.sub_desweB:   ldm r6, r5
-               add r6, r4
-               stm r6, r5
-               addi r5, 1
+.sub_desweB:   stm r4, r5
+               addi r5, 2
                subi r3, 1 
                jz .sub_desweA
                jmp .sub_desweB
 .sub_desweC:   andi r3, 0x7f
                mov r6, r5
+               shl r4, 1
                sub r6, r4
-               addi r2, 2
 .sub_desweD:   ldm r8, r6
                stm r8, r5
-               addi r5, 1
-               addi r6, 1
+               addi r5, 2
+               addi r6, 2
                subi r3, 1
                jz .sub_desweA
                jmp .sub_desweD

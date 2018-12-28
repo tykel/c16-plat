@@ -5,6 +5,9 @@
 #include <string.h>
 #include <math.h>
 
+#include "rle.h"
+#include "swe.h"
+
 #define expect_eq(x,y,s) do{if((x)!=(y)){fprintf(stderr,"test failed: %s. Expected %d, got %d\n",(s),(x),(y));}else{printf("test passed: %s\n",(s));}}while(0);
 #define expect_eqmem(x,y,s) do{if(memcmp((x),(y),sizeof((x)))){fprintf(stderr,"test failed: %s\n",s);}else{printf("test passed: %s\n",(s));}}while(0);
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -203,124 +206,6 @@ int readln(FILE *f, char *line)
    return 0;
 }
 
-/* 
- * Custom RLE where non-zero values are encoded literally. Only zero runs are
- * encoded as value + run.
- */
-size_t rle(uint8_t *src, uint8_t *dst, size_t len)
-{
-   uint8_t byte_to_rep = *src;
-   uint8_t byte_count = 1;
-   uint8_t *s = src + 1;
-   uint8_t *d = dst;
-
-   // in:  81 82 83 84 00 00 00 00 81 82 83 84
-   // out: 81 82 83 84 00 04 81 82 83 84
-   //
-   while (s < src + len) {
-      if (*s == byte_to_rep && byte_count < 0xff && byte_to_rep == 0) {
-         ++byte_count;
-         ++s;
-      } else {
-         if (byte_to_rep > 0) {
-            *d++ = byte_to_rep;
-         } else {
-            *d++ = 0x00;
-            *d++ = byte_count;
-         }
-         byte_to_rep = *s++;
-         byte_count = 1;
-      }
-   }
-   if (byte_to_rep > 0) {
-      *d++ = byte_to_rep;
-   } else {
-      *d++ = 0x00;
-      *d++ = byte_count;
-   }
-   return d - dst;
-}
-
-int find_byte(uint8_t *in, uint8_t *in_end, uint8_t v)
-{
-   uint8_t *in_start = in;
-   for (; in != in_end; ++in) {
-      if (*in == v) {
-         return in - in_start;
-      }
-   }
-   return -1;
-}
-
-/*
- * Sliding window encoding.
- *
- * Simplistic variant of LZ-family encoding.
- * In this scheme, each length-value pair may encode one of two situations:
- * - "write the following byte 0<N<128 times"
- * - "copy 0<N<128 bytes from the following negative offset in the decode buffer"
- */
-size_t swe(uint8_t *out, uint8_t *in, size_t in_size, uint8_t sw_size)
-{
-   int bc = 0;
-   int i = 0;
-   int window_size = 0;
-   
-   // in:  00 00 00 00 01 f8 00 00 fa fa f8 00 14 00 00 00
-   // out: 84 00 81 01 81 f8 02 06 82 fa 02 05 81 14 83 0c
-   //
-   while (i < in_size) {
-      uint8_t b = in[i];
-      int b_pos_in_w = find_byte(in + i - window_size, in + i, b);
-      if (b_pos_in_w == -1) {
-         /* 
-          * If the current input byte is not in the window, encode as a
-          * literal.
-          */
-         size_t n = 1;
-         while (in[i + n] == b) ++n;
-         out[bc++] = 0x80 + n;
-         out[bc++] = b;
-         i += n;
-         window_size = MIN(window_size + n, sw_size - 1);
-      } else {
-         /*
-          * Otherwise, find the longest sequence of bytes in the window which
-          * matches the current+following input bytes.
-          */
-         size_t longest_match = 1;
-         size_t longest_match_start = b_pos_in_w;
-         // Each occurrence of b in the window may mark the start of a run.
-         while (b_pos_in_w != -1) {
-            int next_b_in_w_offs;
-            size_t match_len = 1;
-            bool match = true;
-            while (match &&
-                   i + b_pos_in_w - window_size + match_len < in_size &&
-                   b_pos_in_w + match_len < window_size) {
-               match = memcmp(in + i - window_size + b_pos_in_w, in + i, match_len + 1) == 0;
-               if (match) ++match_len;
-            }
-            if (match_len > longest_match) {
-               longest_match = match_len;
-               longest_match_start = b_pos_in_w;
-            }
-            next_b_in_w_offs = find_byte(in + i - window_size + b_pos_in_w + 1,
-                                         in + i,
-                                         b);
-            if (next_b_in_w_offs < 0)
-               b_pos_in_w = -1;
-            else
-               b_pos_in_w += next_b_in_w_offs + 1;
-         }
-         out[bc++] = longest_match;
-         out[bc++] = window_size - longest_match_start;
-         i += longest_match;
-         window_size = MIN(window_size + longest_match, sw_size - 1);
-      }
-   }
-   return bc;
-}
 
 size_t compress(uint16_t *map, int cols, int rows, bool use_swe, uint8_t **dst)
 {
