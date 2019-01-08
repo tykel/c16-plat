@@ -22,13 +22,13 @@ gfx/c2b.bin: gfx/c2b.bmp rsxpack
 	sed -i '\#$@#d' gfx.s
 	img16 $< -o /tmp/$(@F) -k 13
 	./rsxpack -e none /tmp/$(@F) -o $@  >> gfx.s
-	rm /tmp/$(@F)
+	#rm /tmp/$(@F)
 
 gfx/%.bin: gfx/%.bmp rsxpack
 	sed -i '\#$@#d' gfx.s
 	img16 $< -o /tmp/$(@F) -k 1
 	./rsxpack -e none /tmp/$(@F) -o $@  >> gfx.s
-	rm /tmp/$(@F)
+	#rm /tmp/$(@F)
 
 gfx/tilemap.bmp: gfx/n-tiles.bmp
 	convert $< -crop 16x16 +repage +adjoin /tmp/tile-%02d.bmp
@@ -45,7 +45,7 @@ sfx/%.bin: sfx/%.mid rsxpack
 	midi16 $< --channel 4 && echo -ne \\x00\\x00 | dd conv=notrunc bs=2 count=2 of=$@
 	mv sfx/mus_menu.bin /tmp/sfx-$(@F)
 	./rsxpack -e swe /tmp/sfx-$(@F) -o $@ >> sfx.s
-	rm /tmp/sfx-$(@F)
+	#rm /tmp/sfx-$(@F)
 
 level.s: lvler
 
@@ -53,7 +53,7 @@ lvler: tool/rle.c tool/swe.c tool/lvler.c
 	gcc $^ -o $@ -O2 -Itool
 
 compress_test: tool/rle.c tool/swe.c tool/test.c
-	gcc $^ -o $@ -O2 -Itool
+	gcc $^ -o $@ -O3 -Itool
 
 rsxpack: tool/rle.c tool/swe.c tool/rsxpack.c
 	gcc $^ -o $@ -O2
