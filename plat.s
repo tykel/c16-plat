@@ -69,7 +69,7 @@ data.paletteA     equ 0xf000
 ;------------------------------------------------------------------------------
 ; Main program
 ;------------------------------------------------------------------------------
-_start:        ;jmp menu_init              ; DEBUG: skip the intro
+_start:        jmp menu_init              ; DEBUG: skip the intro
 ;--------------------
 ; Intro screen logic
 ;--------------------
@@ -891,8 +891,9 @@ sub_ldlvl:     ldm r0, data.v_level
                addi r0, 2
                ldi r1, data.level
 ;               call sub_derle             ; Decompress the tile data
-               ldi r2, 2                  ; Music to be dec'd to words 
-               call sub_deswe             ; Decompress the tile data
+               call sub_delzk             ; Decompress the tile data
+;               ldi r2, 2                  ; Music to be dec'd to words 
+;               call sub_deswe             ; Decompress the tile data
                call sub_o_parse           ; Read in the level object data
 .sub_ldlvlZ:   ret
 
@@ -903,6 +904,116 @@ sub_ldlvl:     ldm r0, data.v_level
 sub_ldgfx:     nop
                ret
 
+;------------------------------------------------------------------------------
+; Decompress data with no compression (simple memcpy).
+;
+; Best used when data is not compressible.
+;------------------------------------------------------------------------------
+sub_denone:    ret
+;------------------------------------------------------------------------------
+; Decompress LZK data (LZ-style encoding).
+;
+; This scheme differs from SWE with its much larger sliding window (up to 32KB)
+; and its additional commands (write byte, write word). The length and distance
+; fields are also variable length for additional conciseness. The command types
+; are now packed in groups of 8 into a word at the start of each sequence of 8
+; commands.
+;
+; Data layout (example): 07 00 35 00 00 00 01 03 04
+; Meaning: 
+; - Section is 0x0007 (7) bytes long.
+; - Next commands will be LITW (1), LITW (1), COPY (3)
+; - Write word '0x0000'.
+; - Write byte '0x01'.
+; - Copy 3 bytes from decode buffer, from current position minus 4.
+;
+;  r0: input ptr (compressed data)
+;  r1: output ptr
+;------------------------------------------------------------------------------
+sub_delzk:     mov r5, r1
+               ldm r1, r0
+               addi r0, 2
+               ldi r2, 0
+               ldi r7, 1                  ; Number of blocks in mask
+.sub_delzkA:   cmp r2, r1
+               jge .sub_delzkZ
+               subi r7, 1                 ; If we need more blocks, update mask
+               jnz .sub_delzkB
+               ldi r7, 8
+.sub_delzkW:   ldm r6, r0
+               addi r0, 2
+               addi r2, 2
+.sub_delzkB:   ldm r3, r0                 ; Read command's first byte
+               addi r0, 1
+               addi r2, 1
+               mov r9, r6
+               andi r9, 3                 ; Check the command's type from mask
+               jz .sub_delzkC             ; LITB
+               cmpi r9, 1
+               jz .sub_delzkD             ; LITW
+               cmpi r9, 2
+               jz .sub_delzkE             ; REP
+.sub_delzkF:   mov r8, r5
+               andi r3, 0xff
+               tsti r3, 0x80              ; COPY: check if length needs extra byte
+               jz .sub_delzkFa
+               andi r3, 0x7f
+               ldm r4, r0
+               addi r0, 1
+               addi r2, 1
+               andi r4, 0xff
+               shl r4, 7
+               or r3, r4                  ; And re-assemble.
+.sub_delzkFa:  ldm r4, r0
+               addi r0, 1
+               addi r2, 1
+               andi r4, 0xff
+               tsti r4, 0x80              ; Check if COPY distance needs extra byte
+               jz .sub_delzkFb
+               andi r4, 0x7f
+               ldm r9, r0
+               addi r0, 1                 ; Read byte to repeat
+               addi r2, 1
+               andi r9, 0xff
+               shl r9, 7
+               or r4, r9                  ; And re-assemble.
+.sub_delzkFb:  sub r8, r4
+.sub_delzkFc:  ldm r4, r8
+               stm r4, r5                 ; Store in destination buffer
+               addi r5, 1
+               addi r8, 1
+               subi r3, 1
+               jnz .sub_delzkFc           ; Until length hits 0.
+               jmp .sub_delzkY
+.sub_delzkC:   andi r3, 0xff
+               stm r3, r5
+               addi r5, 1
+               jmp .sub_delzkY
+.sub_delzkD:   stm r3, r5
+               addi r0, 1
+               addi r2, 1
+               addi r5, 2
+               jmp .sub_delzkY
+.sub_delzkE:   andi r3, 0xff
+               tsti r3, 0x80              ; Check if REP length needs extra byte
+               jz .sub_delzkEa
+               andi r3, 0x7f              ; If so, clear top bit...
+               ldm r4, r0
+               addi r0, 1                 ; Read next byte...
+               addi r2, 1
+               andi r4, 0xff
+               shl r4, 7
+               or r3, r4                  ; And re-assemble.
+.sub_delzkEa:  ldm r4, r0
+               addi r0, 1                 ; Read byte to repeat
+               addi r2, 1
+.sub_delzkEb:  stm r4, r5                 ; Store in destination buffer
+               addi r5, 1
+               subi r3, 1
+               jnz .sub_delzkEb           ; Until length hits 0.
+.sub_delzkY:   shr r6, 2
+               jmp .sub_delzkA
+.sub_delzkZ:   ret
 ;------------------------------------------------------------------------------
 ; Decompress SWE data (sliding window encoding)
 ;
@@ -1684,6 +1795,11 @@ data.obj_cbs:        dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
                      dw 0, 0, 0, 0, 0
+
+data.upk_handlers:   dw sub_denone
+                     dw sub_derle
+                     dw sub_deswe
+                     dw sub_delzk
 
 data.v_menu_vblnk:   dw 0
 data.v_menu_start:   dw 0

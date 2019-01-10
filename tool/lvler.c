@@ -207,10 +207,11 @@ int readln(FILE *f, char *line)
 }
 
 
-size_t compress(uint16_t *map, int cols, int rows, bool use_swe, uint8_t **dst)
+size_t compress(uint16_t *map, int cols, int rows, int method, bool shrink, uint8_t **dst)
 {
-   const char *enc_str = use_swe ? "SWE" : "RLE";
-   const size_t bufsz = rows * cols;
+   const char *enc_strs[] = { "RLE", "SWE", "LZK" };
+   const char *enc_str = enc_strs[method];
+   size_t bufsz = rows * cols;
    uint8_t *tmp_tiles = calloc(1, bufsz);
    uint8_t *cpx_tiles = calloc(1, 2 * bufsz);
    uint8_t *cpx_map;
@@ -219,16 +220,24 @@ size_t compress(uint16_t *map, int cols, int rows, bool use_swe, uint8_t **dst)
    int tiles_cpx_size = 0;
    int total_cpx_size = 0;
 
-   for (y = 0; y < rows; y++) {
-      for (x = 0; x < cols; x++) {
-         uint16_t val = map[(y * cols + x)];
-         tmp_tiles[y * cols + x] = val & 0xff;
-         printf("%02x ", val & 0xff);
+   if (shrink) {
+      for (y = 0; y < rows; y++) {
+         for (x = 0; x < cols; x++) {
+            uint16_t val = map[(y * cols + x)];
+            tmp_tiles[y * cols + x] = val & 0xff;
+            printf("%02x ", val & 0xff);
+         }
+         printf("\n");
       }
-      printf("\n");
+   } else {
+      bufsz = bufsz * 2;
+      tmp_tiles = realloc(tmp_tiles, bufsz);
+      memcpy(tmp_tiles, map, bufsz);
    }
   
-   if (use_swe) {
+   if (method == 2) {
+      tiles_cpx_size = lzk(cpx_tiles, tmp_tiles, bufsz);
+   } else if (method == 1) {
       tiles_cpx_size = swe(cpx_tiles, tmp_tiles, bufsz, 128);
    } else {
       tiles_cpx_size = rle(tmp_tiles, cpx_tiles, bufsz);
@@ -287,6 +296,7 @@ int main(int argc, char **argv)
    FILE *file_input;
    FILE *file_output;
    size_t file_output_len = 0;
+   bool shrink = false;
 
    if (argc > 1 && !strncmp(argv[1], "test", 4)) {
       {
@@ -310,7 +320,7 @@ int main(int argc, char **argv)
 
    if (argc < 4 || !strncmp(argv[1], "-h", 2) || !strncmp(argv[1], "--help", 6) ||
        strncmp(argv[2], "-o", 2)) {
-      printf("usage: lvler <infile> -o <outfile> [--rle|--swe]\n");
+      printf("usage: lvler <infile> -o <outfile> [--rle|--swe|--lzk] [--shrink]\n");
       printf("       lvler test\n");
       return 0;
    }
@@ -331,13 +341,22 @@ int main(int argc, char **argv)
    file_output = fopen(argv[3], "wb");
    
    file_output_len += fwrite(&meta, 1, 2*sizeof(int16_t), file_output);
+
+   if ((argc > 4 && !strncmp(argv[4], "--shrink", 8)) ||
+       (argc > 5 && !strncmp(argv[5], "--shrink", 8))) {
+      shrink = true;
+   }
+
    if (argc > 4 && !strncmp(argv[4], "--rle", 5) ||
-       argc > 4 && !strncmp(argv[4], "--swe", 5)) {
+       argc > 4 && !strncmp(argv[4], "--swe", 5) ||
+       argc > 4 && !strncmp(argv[4], "--lzk", 5)) {
       size_t compress_len;
       size_t file_actual_len;
       uint8_t *cpx_map;
       bool use_swe = !strncmp(argv[4], "--swe", 5);
-      compress_len = compress(map, meta.width, meta.height, use_swe, &cpx_map);
+      bool use_lzk = !strncmp(argv[4], "--lzk", 5);
+      int method = use_lzk ? 2 : (use_swe ? 1 : 0);
+      compress_len = compress(map, meta.width, meta.height, method, shrink, &cpx_map);
       printf("compress returned len %d bytes\n", compress_len);
       file_output_len += compress_len;
       file_actual_len = fwrite(cpx_map, 1, file_output_len, file_output);

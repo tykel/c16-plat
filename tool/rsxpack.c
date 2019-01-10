@@ -19,7 +19,7 @@ int main(int argc, char **argv)
    uint8_t *buf_in = NULL, *buf_out = NULL;
    size_t len_in, out_len;
    char opt;
-   enum { ENC_NONE, ENC_RLE, ENC_SWE } enc_type = ENC_RLE;
+   enum { ENC_NONE, ENC_RLE, ENC_SWE, ENC_LZK } enc_type = ENC_RLE;
 
    while ((opt = getopt(argc, argv, "te:ao:")) != -1) {
       switch (opt) {
@@ -36,9 +36,12 @@ int main(int argc, char **argv)
             } else if (strcmp(optarg, "swe") == 0) {
                enc_type = ENC_SWE;
                break;
+            } else if (strcmp(optarg, "lzk") == 0) {
+               enc_type = ENC_LZK;
+               break;
             }
          default:
-            printf("Usage: rsxpack [-e {none|rle|swe}] <input> [-o <output>]\n");
+            printf("Usage: rsxpack [-e {none|rle|swe|lzk}] <input> [-o <output>]\n");
             exit(0);
       }
    }
@@ -86,6 +89,12 @@ int main(int argc, char **argv)
       out_len = swe(buf_out, buf_in, len_in, 128);
       if (out_len == 0) {
          fprintf(stderr, "error: SWE conmpression failed\n");
+         exit(1);
+      }
+   } else if (enc_type == ENC_LZK) {
+      out_len = lzk(buf_out, buf_in, len_in);
+      if (out_len == 0) {
+         fprintf(stderr, "error: LZK conmpression failed\n");
          exit(1);
       }
    }

@@ -50,7 +50,7 @@ sfx/%.bin: sfx/%.mid rsxpack
 level.s: lvler
 
 lvler: tool/rle.c tool/swe.c tool/lvler.c
-	gcc $^ -o $@ -O2 -Itool
+	gcc $^ -o $@ -O3 -Itool
 
 compress_test: tool/rle.c tool/swe.c tool/test.c
 	gcc $^ -o $@ -O3 -Itool
@@ -63,4 +63,4 @@ lvler-gui: tool/lvler-gui.c
 
 level/%.bin: level/%.src lvler
 	sed -i '\#$@#d' level.s
-	./lvler $< -o $@ --swe | grep importbin >> level.s
+	./lvler $< -o $@ --lzk | grep importbin >> level.s
