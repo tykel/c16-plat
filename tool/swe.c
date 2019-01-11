@@ -6,6 +6,9 @@
 #ifndef MIN
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
 #endif
+#ifndef MAX
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#endif
 
 static int find_byte(uint8_t *in, uint8_t *in_end, uint8_t v)
 {
@@ -188,10 +191,6 @@ void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
          ++len_rep;
       /* Then calculate longest from window. */
       if (src_cur - window > 0x7fff) window = src_cur - 0x7fff;
-      /*
-       * TODO: Implement some form of optimization so we can skip as much as
-       * possible.
-       */
 #ifdef LZK_SLOW
       for (; window < src_cur; ++window) {
          size_t max_match_len = src_cur - window;
@@ -209,11 +208,11 @@ void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
          }
       }
 #else
-      size_t i;
-      size_t max_match_len = src_cur - window;
+      int i;
+      int max_match_len = src_cur - window;
       if (src_cur + max_match_len > src + src_len)
          max_match_len = src_len - (src_cur - src);
-      for (i = max_match_len; i > 2; --i) {
+      for (i = max_match_len; i > len_copy; --i) {
          size_t len_match = lzk_memcmp(src_cur - i, src_cur, i);
          if (len_match > len_copy) {
             len_copy = len_match;
