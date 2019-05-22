@@ -262,7 +262,13 @@ __spin:        vblnk
 star_mode:     snd0
 .star_modeL:   vblnk
                call sub_sts_drw
-               jmp star_mode
+               call sub_btn_start
+               jz star_mode
+               ldi r0, 0
+               stm r0, data.v_menu_start
+               ldi r0, 5
+               call sub_wait
+               jmp menu_init
 
 ;------------------------------------------------------------------------------
 ; Initialize the persistent registers to sane values
