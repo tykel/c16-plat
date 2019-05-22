@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include "swe.h"
 
 #ifndef MIN
@@ -154,6 +155,7 @@ struct match {
    enum block_type type;
    size_t len;
    size_t distance;
+   bool seq_start;
 };
 
 static inline size_t min4(size_t a, size_t b, size_t c, size_t d)
@@ -174,10 +176,12 @@ static size_t lzk_memcmp(uint8_t *a, uint8_t *b, size_t max_len)
    return a - a_orig;
 }
 
-void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
+static void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
 {
    size_t b;
+   struct timespec start, end;
 
+   clock_gettime(CLOCK_MONOTONIC, &start);
    for (b = 0; b < src_len; ++b) {
       uint8_t *src_cur = src + b;
       uint8_t *window = src;
@@ -192,7 +196,7 @@ void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
       /* Then calculate longest from window. */
       if (src_cur - window > 0x7fff) window = src_cur - 0x7fff;
 #ifdef LZK_SLOW
-      for (; window < src_cur; ++window) {
+      for (; window < src_cur; ) {
          size_t max_match_len = src_cur - window;
          if (src_cur + max_match_len > src + src_len)
             max_match_len = src_len - (src_cur - src);
@@ -206,18 +210,21 @@ void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
             len_copy = len_common;
             distance_copy = src_cur - window;
          }
+         while (*++window != *src_cur) ;
       }
 #else
+   
       int i;
       int max_match_len = src_cur - window;
       if (src_cur + max_match_len > src + src_len)
          max_match_len = src_len - (src_cur - src);
-      for (i = max_match_len; i > len_copy; --i) {
+      for (i = max_match_len; i > len_copy; ) {
          size_t len_match = lzk_memcmp(src_cur - i, src_cur, i);
          if (len_match > len_copy) {
             len_copy = len_match;
             distance_copy = i;
          }
+         while (*(src_cur - --i) != *src_cur) ;
       }
 #endif
       /* Record the longest of the two. */
@@ -231,6 +238,14 @@ void lzk_pass1(uint8_t *src, size_t src_len, struct match *best_match)
          best_match[b].distance = 0; 
       }
    }
+   clock_gettime(CLOCK_MONOTONIC, &end);
+   unsigned long usec = (end.tv_sec - start.tv_sec) * 1000000;
+   if (end.tv_nsec > start.tv_nsec) {
+      end.tv_nsec += 1000000000;
+      usec -= 1000000;
+   }
+   usec += (end.tv_nsec - start.tv_nsec) / 1000;
+   printf("lzk_pass1: %6u us elapsed.\n", usec);
 }
 
 size_t lzk(uint8_t *dst, uint8_t *src, size_t src_len)

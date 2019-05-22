@@ -56,7 +56,7 @@ compress_test: tool/rle.c tool/swe.c tool/test.c
 	gcc $^ -o $@ -O3 -Itool
 
 rsxpack: tool/rle.c tool/swe.c tool/rsxpack.c
-	gcc $^ -o $@ -O2
+	gcc $^ -o $@ -O2 -march=native
 
 lvler-gui: tool/lvler-gui.c
 	gcc $< -o $@ -O2 $(shell sdl-config --cflags) $(shell sdl-config --libs)
