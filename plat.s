@@ -78,7 +78,6 @@ intro:         ldi r0, 0
                ldi r2, 6 
                ldi r3, 0x0af2
                call sub_sndq
-               call sub_sts_init
                ldi r0, sub_drwintro       ; Display the intro screen
                call sub_fadein
                ldi r0, 60
@@ -259,11 +258,12 @@ main_gameover: ldi r0, data.str_gameover
 __spin:        vblnk
                jmp __spin
 
-star_mode:     snd0
+star_mode:     call sub_sts_init
+               snd0
 .star_modeL:   vblnk
                call sub_sts_drw
                call sub_btn_start
-               jz star_mode
+               jz .star_modeL
                ldi r0, 0
                stm r0, data.v_menu_start
                ldi r0, 5

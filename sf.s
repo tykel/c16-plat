@@ -18,6 +18,7 @@ NUM_STARS   equ 320
 
 ;------------------------------------------------------------------------------
 sub_sts_init:   call sub_rndstars           ; Generate our initial stars
+                pal d_pal
                 ret
 
 sub_sts_drw:    cls
@@ -63,7 +64,8 @@ sub_rndstars:   ldi r0, 0
 ;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
-sub_advstar:    mov r1, r0
+sub_advstar:    ldi rf, 63                  ; Map from [0..999] to [0..15]
+                mov r1, r0
                 muli r1, 8
                 addi r1, LOC_STARS
                 ldm r2, r1                  ; X
